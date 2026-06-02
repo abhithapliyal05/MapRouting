@@ -1,0 +1,5 @@
+# Ignore all heavy map data, logs, and generated tiles
+data/*
+
+# But do not ignore the data folder itself if we want to keep the structure
+!data/.gitkeep

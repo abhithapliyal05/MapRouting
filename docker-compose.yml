@@ -1,0 +1,14 @@
+services:
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    container_name: local_routing_engine
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./data:/custom_files
+    environment:
+      - server_threads=2
+      - build_elevation=False
+      - build_admins=True
+      - build_time_zones=False
+      - build_tar=True
