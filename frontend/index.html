@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Planner — Interactive Map</title>
+    <meta name="description"
+        content="Plan routes across Japan with real-time autocomplete, draggable pins, and turn-by-turn directions.">
+    <script src="https://unpkg.com/maplibre-gl@^5.0.0/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@^5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ===== Reset & Base ===== */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            overflow: hidden;
+        }
+
+        /* ===== Full-screen Map ===== */
+        #map {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 0;
+        }
+
+        /* ===== Floating Side Panel ===== */
+        #side-panel {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            bottom: 12px;
+            width: 380px;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow:
+                0 1px 3px rgba(0, 0, 0, 0.08),
+                0 8px 24px rgba(0, 0, 0, 0.12),
+                0 24px 48px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            overflow: hidden;
+            transition: box-shadow 0.3s ease;
+        }
+
+        #side-panel:hover {
+            box-shadow:
+                0 1px 3px rgba(0, 0, 0, 0.08),
+                0 12px 32px rgba(0, 0, 0, 0.16),
+                0 32px 64px rgba(0, 0, 0, 0.08);
+        }
+
+        /* ===== Panel Header ===== */
+        .panel-header {
+            padding: 20px 20px 16px;
+            background: #fff;
+            flex-shrink: 0;
+        }
+
+        /* ===== Engine Selection Tabs ===== */
+        .engine-container {
+            display: flex;
+            gap: 8px;
+            background: #f1f3f4;
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 14px;
+        }
+
+        .engine-tab {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 8px 0;
+            font-size: 11.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s ease;
+            color: #5f6368;
+            border-radius: 6px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .engine-tab:hover {
+            color: #1a73e8;
+        }
+
+        .engine-tab.active {
+            color: #1a73e8;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+        }
+
+        /* ===== Travel Mode Tabs ===== */
+        .mode-container {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #f1f3f4;
+            margin-bottom: 16px;
+        }
+
+        .mode-tab {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 12px 0 10px;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s ease;
+            color: #5f6368;
+            border-radius: 0;
+        }
+
+        .mode-tab:hover {
+            background: #f8f9fa;
+            color: #1a73e8;
+        }
+
+        .mode-tab.active {
+            color: #1a73e8;
+            border-bottom-color: #1a73e8;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        /* ===== Search Card ===== */
+        .routing-search-box {
+            background: #fff;
+            border-radius: 12px;
+            padding: 4px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            position: relative;
+            border: 1px solid #e8eaed;
+        }
+
+        /* The vertical connector line between dots */
+        .routing-search-box::before {
+            content: '';
+            position: absolute;
+            left: 23px;
+            top: 26px;
+            bottom: 58px;
+            width: 2px;
+            background: #dadce0;
+            z-index: 1;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            gap: 12px;
+            transition: background 0.15s ease;
+            border-radius: 8px;
+            margin: 2px 4px;
+        }
+
+        .input-row:hover {
+            background: #f8f9fa;
+        }
+
+        .input-row:focus-within {
+            background: #e8f0fe;
+        }
+
+        .indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            font-size: 0;
+            border: 2.5px solid;
+        }
+
+        .indicator.green {
+            border-color: #34a853;
+            background: #fff;
+        }
+
+        .indicator.green::after {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #34a853;
+        }
+
+        .indicator.red {
+            border-color: #ea4335;
+            background: #fff;
+        }
+
+        .indicator.red::after {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ea4335;
+        }
+
+        #search-start,
+        #search-end {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            padding: 4px 0;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            color: #202124;
+            font-weight: 400;
+        }
+
+        #search-start::placeholder,
+        #search-end::placeholder {
+            color: #9aa0a6;
+            font-weight: 400;
+        }
+
+        .search-divider {
+            height: 1px;
+            background: #e8eaed;
+            margin: 0 16px 0 46px;
+        }
+
+        #dual-search-button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s ease;
+            margin: 8px 12px 10px;
+            letter-spacing: 0.2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        #dual-search-button:hover {
+            background: #1557b0;
+            box-shadow: 0 2px 8px rgba(26, 115, 232, 0.3);
+        }
+
+        #dual-search-button:active {
+            transform: scale(0.98);
+        }
+
+        /* ===== Suggestion Dropdowns ===== */
+        .suggestions-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 4px;
+            right: 4px;
+            background: #ffffff;
+            border: 1px solid #e8eaed;
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            max-height: 220px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 12px 16px 12px 46px;
+            font-size: 13px;
+            color: #3c4043;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f3f4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: background 0.12s ease;
+            position: relative;
+        }
+
+        .suggestion-item::before {
+            content: '📍';
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+            border-radius: 0 0 12px 12px;
+        }
+
+        .suggestion-item:hover {
+            background: #f1f3f4;
+        }
+
+        /* ===== Instruction Tip ===== */
+        .instruction {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 12px;
+            color: #5f6368;
+            line-height: 1.6;
+            margin-top: 12px;
+            border: 1px solid #e8eaed;
+        }
+
+        .instruction strong {
+            color: #202124;
+        }
+
+        /* ===== Status & Clear ===== */
+        #status-text {
+            font-size: 12px;
+            color: #5f6368;
+            font-weight: 500;
+            margin-top: 12px;
+            padding: 6px 12px;
+            background: #f8f9fa;
+            border-radius: 20px;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        #clear-btn {
+            cursor: pointer;
+            padding: 10px;
+            background: transparent;
+            color: #ea4335;
+            border: 1.5px solid #ea4335;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            width: 100%;
+            margin-top: 12px;
+            transition: all 0.2s ease;
+            letter-spacing: 0.2px;
+        }
+
+        #clear-btn:hover {
+            background: #ea4335;
+            color: #fff;
+        }
+
+        /* ===== Summary Card ===== */
+        #summary-card {
+            padding: 20px;
+            display: none;
+            background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+            border-top: 1px solid #e8eaed;
+            border-bottom: 1px solid #e8eaed;
+            flex-shrink: 0;
+        }
+
+        .summary-row {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        .time-big {
+            font-size: 28px;
+            font-weight: 700;
+            color: #137333;
+            letter-spacing: -0.5px;
+        }
+
+        .dist-sub {
+            font-size: 14px;
+            color: #5f6368;
+            font-weight: 500;
+        }
+
+        .route-via {
+            font-size: 12px;
+            color: #80868b;
+            margin-top: 4px;
+        }
+
+        /* ===== Directions List ===== */
+        #directions-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        #directions-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #directions-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #directions-container::-webkit-scrollbar-thumb {
+            background: #dadce0;
+            border-radius: 10px;
+        }
+
+        #directions-container::-webkit-scrollbar-thumb:hover {
+            background: #bdc1c6;
+        }
+
+        #directions-placeholder {
+            color: #9aa0a6;
+            text-align: center;
+            margin-top: 60px;
+            font-size: 13px;
+            padding: 0 20px;
+        }
+
+        #directions-placeholder::before {
+            content: '🗺️';
+            display: block;
+            font-size: 40px;
+            margin-bottom: 12px;
+            opacity: 0.6;
+        }
+
+        .maneuver-item {
+            font-size: 13px;
+            color: #3c4043;
+            padding: 14px 20px;
+            border-bottom: 1px solid #f1f3f4;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            transition: background 0.15s ease;
+            cursor: default;
+        }
+
+        .maneuver-item:hover {
+            background: #f8f9fa;
+        }
+
+        .maneuver-index {
+            background: #e8eaed;
+            color: #5f6368;
+            border-radius: 50%;
+            min-width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .maneuver-text {
+            flex: 1;
+            line-height: 1.5;
+        }
+
+        .maneuver-dist {
+            font-size: 11px;
+            color: #80868b;
+            margin-top: 3px;
+            font-weight: 500;
+        }
+
+        /* ===== Map Controls Repositioning ===== */
+        .maplibregl-ctrl-top-right {
+            top: 12px !important;
+            right: 12px !important;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 500px) {
+            #side-panel {
+                width: calc(100% - 24px);
+                max-height: 50vh;
+                bottom: auto;
+            }
+        }
+
+        /* ===== Animations ===== */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #side-panel {
+            animation: fadeIn 0.4s ease-out;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="side-panel">
+        <div class="panel-header">
+            <!-- View Selection Tabs Removed (Comparison Mode Only) -->
+
+            <!-- Travel Mode Tabs -->
+            <div class="mode-container">
+                <button class="mode-tab active" id="tab-auto" onclick="setTravelMode('auto')"
+                    title="Driving">🚗</button>
+                <button class="mode-tab" id="tab-bicycle" onclick="setTravelMode('bicycle')" title="Cycling">🚲</button>
+                <button class="mode-tab" id="tab-pedestrian" onclick="setTravelMode('pedestrian')"
+                    title="Walking">🚶</button>
+            </div>
+
+            <!-- Search Inputs -->
+            <div class="routing-search-box">
+                <div class="input-wrapper">
+                    <div class="input-row">
+                        <span class="indicator green"></span>
+                        <input type="text" id="search-start" placeholder="Choose starting point..." autocomplete="off">
+                    </div>
+                    <div id="suggestions-start" class="suggestions-dropdown"></div>
+                </div>
+
+                <div class="search-divider"></div>
+
+                <div class="input-wrapper">
+                    <div class="input-row">
+                        <span class="indicator red"></span>
+                        <input type="text" id="search-end" placeholder="Choose destination..." autocomplete="off">
+                    </div>
+                    <div id="suggestions-end" class="suggestions-dropdown"></div>
+                </div>
+
+                <button id="dual-search-button">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    Search Route
+                </button>
+            </div>
+
+            <div class="instruction">
+                <strong>Quick start:</strong> Click the map to set <strong>start</strong> and <strong>end</strong>
+                points, or search above. Drag pins to adjust.
+            </div>
+
+            <div id="status-text">Waiting for input…</div>
+            <button id="clear-btn" style="display:none;" onclick="resetMap()">✕ Clear Route</button>
+        </div>
+
+        <div id="summary-card">
+            <div class="summary-row">
+                <div id="route-time" class="time-big">-- min</div>
+                <div id="route-distance" class="dist-sub">-- km</div>
+            </div>
+            <div class="route-via">via Valhalla</div>
+            <div id="performance-stats" style="margin-top: 15px; font-size: 13px; color: #5f6368; border-top: 1px solid #eee; padding-top: 10px;">
+                <strong>Processing Time Comparison:</strong><br>
+                <div style="display: flex; align-items: center; margin-top: 4px;">
+                    <div style="width: 12px; height: 12px; background-color: #4285f4; border: 2px solid #185abc; border-radius: 2px; margin-right: 6px; box-sizing: border-box;"></div>
+                    <span style="display:inline-block; width: 80px;">Valhalla:</span> <strong id="time-valhalla" style="color: #1a73e8;">--</strong>
+                </div>
+                <div style="display: flex; align-items: center; margin-top: 4px;">
+                    <div style="width: 12px; height: 4px; border-top: 3px dashed #ea4335; margin-right: 6px; box-sizing: border-box;"></div>
+                    <span style="display:inline-block; width: 80px;">Custom A*:</span> <strong id="time-astar" style="color: #ea4335;">--</strong>
+                </div>
+            </div>
+        </div>
+
+        <div id="directions-container">
+            <div id="directions-placeholder">
+                Search or click the map to get directions
+            </div>
+            <div id="directions-list"></div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        const backendUrl = "http://localhost:8002";
+        let startCoords = null;
+        let endCoords = null;
+        let routingMode = 'auto';
+
+        const ASTAR_BBOX = {
+            minLat: 35.600,
+            maxLat: 35.750,
+            minLon: 139.650,
+            maxLon: 139.850
+        };
+        let bboxPolygonSourceId = 'astar-bbox-source';
+        let bboxPolygonLayerId = 'astar-bbox-layer';
+
+        const statusText = document.getElementById('status-text');
+        const clearBtn = document.getElementById('clear-btn');
+        const summaryCard = document.getElementById('summary-card');
+        const directionsPlaceholder = document.getElementById('directions-placeholder');
+        const directionsList = document.getElementById('directions-list');
+        const startInput = document.getElementById("search-start");
+        const endInput = document.getElementById("search-end");
+
+        function isInsideBBox(lat, lon) {
+            return lat >= ASTAR_BBOX.minLat && lat <= ASTAR_BBOX.maxLat &&
+                lon >= ASTAR_BBOX.minLon && lon <= ASTAR_BBOX.maxLon;
+        }
+
+        // (Legacy setView and renderActiveView functions removed)
+
+        function showBBoxOverlay() {
+            if (map.getSource(bboxPolygonSourceId)) return;
+
+            const coordinates = [
+                [ASTAR_BBOX.minLon, ASTAR_BBOX.minLat],
+                [ASTAR_BBOX.maxLon, ASTAR_BBOX.minLat],
+                [ASTAR_BBOX.maxLon, ASTAR_BBOX.maxLat],
+                [ASTAR_BBOX.minLon, ASTAR_BBOX.maxLat],
+                [ASTAR_BBOX.minLon, ASTAR_BBOX.minLat]
+            ];
+
+            map.addSource(bboxPolygonSourceId, {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'geometry': {
+                        'type': 'Polygon',
+                        'coordinates': [coordinates]
+                    }
+                }
+            });
+
+            map.addLayer({
+                'id': bboxPolygonLayerId + '-fill',
+                'type': 'fill',
+                'source': bboxPolygonSourceId,
+                'paint': {
+                    'fill-color': '#ff9800',
+                    'fill-opacity': 0.15
+                }
+            });
+
+            map.addLayer({
+                'id': bboxPolygonLayerId,
+                'type': 'line',
+                'source': bboxPolygonSourceId,
+                'paint': {
+                    'line-color': '#ff9800',
+                    'line-width': 3,
+                    'line-dasharray': [6, 4]
+                }
+            });
+
+            const bounds = new maplibregl.LngLatBounds();
+            bounds.extend([ASTAR_BBOX.minLon, ASTAR_BBOX.minLat]);
+            bounds.extend([ASTAR_BBOX.maxLon, ASTAR_BBOX.maxLat]);
+            map.fitBounds(bounds, {
+                padding: { top: 80, bottom: 80, left: 420, right: 80 },
+                maxZoom: 14,
+                duration: 1200
+            });
+        }
+
+        function hideBBoxOverlay() {
+            if (map.getLayer(bboxPolygonLayerId)) map.removeLayer(bboxPolygonLayerId);
+            if (map.getLayer(bboxPolygonLayerId + '-fill')) map.removeLayer(bboxPolygonLayerId + '-fill');
+            if (map.getSource(bboxPolygonSourceId)) map.removeSource(bboxPolygonSourceId);
+        }
+
+        // --- Reverse Geocoding Helper Engine ---
+        async function updateInputWithReverseGeocode(lat, lon, inputElement) {
+            inputElement.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+            const address = await reverseGeocode(lat, lon);
+            inputElement.value = address;
+        }
+
+        async function reverseGeocode(lat, lon) {
+            const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.features && data.features.length > 0) {
+                    const props = data.features[0].properties;
+                    const name = props.name || "";
+                    const city = props.city || props.town || props.village || "";
+                    if (name && city && name !== city) {
+                        return `${name}, ${city}`;
+                    }
+                    return name || city || `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+                }
+            } catch (err) {
+                console.error("Reverse geocoding failed:", err);
+            }
+            return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+        }
+
+        // --- Enable marker options to make them drag-responsive ---
+        const startMarker = new maplibregl.Marker({ color: '#34a853', draggable: true });
+        const endMarker = new maplibregl.Marker({ color: '#ea4335', draggable: true });
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                'version': 8,
+                'sources': {
+                    'osm-raster': {
+                        'type': 'raster',
+                        'tiles': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        'tileSize': 256,
+                        'attribution': '© OpenStreetMap contributors'
+                    }
+                },
+                'layers': [{ 'id': 'osm-layer', 'type': 'raster', 'source': 'osm-raster' }]
+            },
+            center: [139.76, 35.68],
+            zoom: 10
+        });
+
+        map.on('load', () => {
+            showBBoxOverlay();
+        });
+
+        // --- Tier 2 Upgrade: Handle Drag Listeners ---
+        startMarker.on('dragend', async () => {
+            const lngLat = startMarker.getLngLat();
+            startCoords = { lat: lngLat.lat, lon: lngLat.lng };
+            await updateInputWithReverseGeocode(startCoords.lat, startCoords.lon, startInput);
+            if (endCoords) {
+                statusText.innerText = "Start position updated. Click Search Route to update path.";
+                statusText.style.color = "#1a73e8";
+            }
+        });
+
+        endMarker.on('dragend', async () => {
+            const lngLat = endMarker.getLngLat();
+            endCoords = { lat: lngLat.lat, lon: lngLat.lng };
+            await updateInputWithReverseGeocode(endCoords.lat, endCoords.lon, endInput);
+            if (startCoords) {
+                statusText.innerText = "Destination updated. Click Search Route to update path.";
+                statusText.style.color = "#1a73e8";
+            }
+        });
+
+        function setTravelMode(mode) {
+            if (routingMode === mode) return;
+            document.querySelectorAll('.mode-tab').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(`tab-${mode}`).classList.add('active');
+            routingMode = mode;
+
+            if (startCoords && endCoords && map.getLayer('route-line')) {
+                statusText.innerText = "Recalculating…";
+                getRoute(startCoords, endCoords);
+            }
+        }
+
+        map.on('click', async (e) => {
+            const clickedLatLng = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+
+            if (!startCoords) {
+                startCoords = clickedLatLng;
+                startMarker.setLngLat([clickedLatLng.lon, clickedLatLng.lat]).addTo(map);
+                statusText.innerText = "Now click your destination…";
+                statusText.style.color = "#ea4335";
+                await updateInputWithReverseGeocode(clickedLatLng.lat, clickedLatLng.lon, startInput);
+            } else if (!endCoords) {
+                endCoords = clickedLatLng;
+                endMarker.setLngLat([clickedLatLng.lon, clickedLatLng.lat]).addTo(map);
+                statusText.innerText = "Points selected. Click Search Route to calculate path.";
+                statusText.style.color = "#1a73e8";
+                await updateInputWithReverseGeocode(clickedLatLng.lat, clickedLatLng.lon, endInput);
+            } else {
+                // Third click fallback scenario
+                resetMap();
+                startCoords = clickedLatLng;
+                startMarker.setLngLat([clickedLatLng.lon, clickedLatLng.lat]).addTo(map);
+                statusText.innerText = "Now click your destination…";
+                statusText.style.color = "#ea4335";
+                await updateInputWithReverseGeocode(clickedLatLng.lat, clickedLatLng.lon, startInput);
+            }
+        });
+
+        async function fetchRouteData(engine, start, end) {
+            let url = "";
+            let query = {};
+            if (engine === 'astar') {
+                query = { locations: [start, end], format: "json" };
+                url = `http://localhost:8003/route?json=${JSON.stringify(query)}`;
+            } else {
+                query = { locations: [start, end], costing: routingMode, format: "json" };
+                url = `${backendUrl}/route?json=${JSON.stringify(query)}`;
+            }
+            
+            const startMark = performance.now();
+            const response = await fetch(url);
+            const data = await response.json();
+            const endMark = performance.now();
+            const timeMs = Math.round(endMark - startMark);
+
+            if (data.trip && data.trip.status === 0) {
+                const summary = data.trip.summary;
+                const distanceKm = summary.length.toFixed(1);
+                const durationMin = Math.round(summary.time / 60);
+                let timeString = `${durationMin} mins`;
+                if (durationMin >= 60) {
+                    const hrs = Math.floor(durationMin / 60);
+                    const mins = durationMin % 60;
+                    timeString = `${hrs} hr ${mins} min`;
+                }
+
+                return {
+                    timeString,
+                    distanceString: `${distanceKm} km`,
+                    maneuvers: data.trip.legs[0].maneuvers,
+                    coordinates: decodePolyline6(data.trip.legs[0].shape),
+                    processingTime: timeMs
+                };
+            }
+            throw new Error(data.trip?.status_message || "Route not found");
+        }
+
+        async function getRoute(start, end) {
+            // Check if within A* bounds
+            const isAstarValid = isInsideBBox(start.lat, start.lon) && isInsideBBox(end.lat, end.lon);
+            document.getElementById('time-valhalla').innerText = "Computing...";
+            document.getElementById('time-astar').innerText = isAstarValid ? "Computing..." : "N/A (Outside Area)";
+            
+            // view-toggles logic removed
+            summaryCard.style.display = "block";
+            directionsPlaceholder.style.display = "none";
+            clearBtn.style.display = "block";
+            
+            statusText.innerText = "Computing routes...";
+            statusText.style.color = "#1a73e8";
+
+            // Launch both concurrently
+            const valPromise = fetchRouteData('valhalla', start, end).catch(e => { console.error('Valhalla error:', e); return null; });
+            const astarPromise = isAstarValid 
+                ? fetchRouteData('astar', start, end).catch(e => { console.error('A* error:', e); return null; }) 
+                : Promise.resolve(null);
+
+            const [valhallaData, astarData] = await Promise.all([valPromise, astarPromise]);
+            
+            if (valhallaData) {
+                document.getElementById('time-valhalla').innerText = `${valhallaData.processingTime} ms`;
+            } else {
+                document.getElementById('time-valhalla').innerText = "Error";
+            }
+
+            if (astarData) {
+                document.getElementById('time-astar').innerText = `${astarData.processingTime} ms`;
+            } else if (isAstarValid) {
+                document.getElementById('time-astar').innerText = "Error";
+            }
+
+            // Always display Valhalla Route as the canonical route UI
+            if (valhallaData) {
+                document.getElementById('route-time').innerText = valhallaData.timeString;
+                document.getElementById('route-distance').innerText = valhallaData.distanceString;
+
+                directionsList.innerHTML = "";
+                valhallaData.maneuvers.forEach((maneuver, index) => {
+                    let distText = `${Math.round(maneuver.length * 1000)} m`;
+                    if (maneuver.length >= 1) distText = `${maneuver.length.toFixed(1)} km`;
+                    const item = document.createElement('div');
+                    item.className = 'maneuver-item';
+                    item.innerHTML = `
+                        <div class="maneuver-index">${index + 1}</div>
+                        <div class="maneuver-text">
+                            <div>${maneuver.instruction}</div>
+                            <div class="maneuver-dist">${distText}</div>
+                        </div>
+                    `;
+                    directionsList.appendChild(item);
+                });
+
+                // Draw Valhalla path, and A* path if valid
+                drawRoutes(valhallaData.coordinates, astarData ? astarData.coordinates : null);
+            }
+
+            statusText.innerText = "Routes compared!";
+            statusText.style.color = "#137333";
+        }
+
+        function decodePolyline6(str) {
+            let index = 0, len = str.length, lat = 0, lng = 0, coordinates = [];
+            while (index < len) {
+                let b, shift = 0, result = 0;
+                do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
+                shift = 0; result = 0;
+                do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
+                coordinates.push([lng * 1e-6, lat * 1e-6]);
+            }
+            return coordinates;
+        }
+
+        function drawRoutes(valhallaCoords, astarCoords) {
+            resetRouteLayers();
+
+            if (valhallaCoords) {
+                map.addSource('route-valhalla-source', {
+                    'type': 'geojson',
+                    'data': { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': valhallaCoords } }
+                });
+                map.addLayer({
+                    'id': 'route-valhalla-casing', 'type': 'line', 'source': 'route-valhalla-source',
+                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                    'paint': { 'line-color': '#185abc', 'line-width': 10, 'line-opacity': 0.9 }
+                });
+                map.addLayer({
+                    'id': 'route-valhalla', 'type': 'line', 'source': 'route-valhalla-source',
+                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                    'paint': { 'line-color': '#4285f4', 'line-width': 6, 'line-opacity': 1.0 }
+                });
+            }
+
+            if (astarCoords) {
+                map.addSource('route-astar-source', {
+                    'type': 'geojson',
+                    'data': { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': astarCoords } }
+                });
+                map.addLayer({
+                    'id': 'route-astar', 'type': 'line', 'source': 'route-astar-source',
+                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                    'paint': { 
+                        'line-color': '#ea4335', 
+                        'line-width': 4, 
+                        'line-opacity': 1.0,
+                        'line-dasharray': [2, 2]
+                    }
+                });
+            }
+        }
+
+        function resetRouteLayers() {
+            if (map.getLayer('route-astar')) map.removeLayer('route-astar');
+            if (map.getSource('route-astar-source')) map.removeSource('route-astar-source');
+            
+            if (map.getLayer('route-valhalla-casing')) map.removeLayer('route-valhalla-casing');
+            if (map.getLayer('route-valhalla')) map.removeLayer('route-valhalla');
+            if (map.getSource('route-valhalla-source')) map.removeSource('route-valhalla-source');
+
+            if (map.getLayer('route-line-casing')) map.removeLayer('route-line-casing');
+            if (map.getLayer('route-line')) map.removeLayer('route-line');
+            if (map.getSource('route-source')) map.removeSource('route-source');
+        }
+
+        function resetMap() {
+            startCoords = null; endCoords = null;
+            document.getElementById('time-valhalla').innerText = '--';
+            document.getElementById('time-astar').innerText = '--';
+            startMarker.remove(); endMarker.remove();
+            resetRouteLayers();
+            statusText.innerText = "Waiting for input…";
+            statusText.style.color = "#5f6368";
+            clearBtn.style.display = "none";
+            summaryCard.style.display = "none";
+            directionsList.innerHTML = "";
+            directionsPlaceholder.style.display = "block";
+            startInput.value = "";
+            endInput.value = "";
+        }
+
+        // --- Tier 3 Feature: Debounced Autocomplete Engine ---
+
+        let debounceTimer;
+
+        // Debounce helper: delays execution until typing pauses for 300ms
+        function debounce(func, delay = 300) {
+            return (...args) => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => func(...args), delay);
+            };
+        }
+
+        // Fetch up to 5 matching locations in Japan
+        async function fetchSuggestions(query) {
+            if (!query || query.length < 2) return [];
+            const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&bbox=122.9,24.3,146.3,45.5`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                return data.features || [];
+            } catch (err) {
+                console.error("Autocomplete fetch failed:", err);
+                return [];
+            }
+        }
+
+        // Render the dropdown options
+        function handleAutocomplete(inputElement, dropdownElement, type) {
+            const query = inputElement.value.trim();
+
+            if (query.length < 2) {
+                dropdownElement.innerHTML = "";
+                dropdownElement.style.display = "none";
+                return;
+            }
+
+            fetchSuggestions(query).then(features => {
+                dropdownElement.innerHTML = "";
+
+                if (features.length === 0) {
+                    dropdownElement.style.display = "none";
+                    return;
+                }
+
+                features.forEach(feature => {
+                    const props = feature.properties;
+                    const [lon, lat] = feature.geometry.coordinates;
+
+                    // Build a descriptive name string (e.g., "Shibuya Station, Tokyo")
+                    const name = props.name || "";
+                    const city = props.city ? `, ${props.city}` : "";
+                    const fullLabel = `${name}${city}`;
+
+                    const item = document.createElement("div");
+                    item.className = "suggestion-item";
+                    item.innerText = fullLabel;
+
+                    // When a suggestion item is clicked:
+                    item.addEventListener("click", () => {
+                        inputElement.value = fullLabel;
+                        dropdownElement.innerHTML = "";
+                        dropdownElement.style.display = "none";
+
+                        // Map coordinates to target global states immediately
+                        if (type === 'start') {
+                            startCoords = { lat, lon };
+                            startMarker.setLngLat([lon, lat]).addTo(map);
+                        } else {
+                            endCoords = { lat, lon };
+                            endMarker.setLngLat([lon, lat]).addTo(map);
+                        }
+
+                        // Smoothly pan camera to focus on this new selection
+                        map.flyTo({ center: [lon, lat], zoom: 14 });
+
+                        if (startCoords && endCoords) {
+                            statusText.innerText = "Points selected. Click Search Route to calculate path.";
+                            statusText.style.color = "#1a73e8";
+                        }
+                    });
+
+                    dropdownElement.appendChild(item);
+                });
+
+                dropdownElement.style.display = "block";
+            });
+        }
+
+        // Attach debounced event listeners to inputs
+        const startDropdown = document.getElementById("suggestions-start");
+        startInput.addEventListener("input", debounce(() => {
+            handleAutocomplete(startInput, startDropdown, 'start');
+        }));
+        startInput.addEventListener("input", () => {
+            startCoords = null; // Clear coordinate index to trigger re-geocode if typed manually
+        });
+
+        const endDropdown = document.getElementById("suggestions-end");
+        endInput.addEventListener("input", debounce(() => {
+            handleAutocomplete(endInput, endDropdown, 'end');
+        }));
+        endInput.addEventListener("input", () => {
+            endCoords = null; // Clear coordinate index to trigger re-geocode if typed manually
+        });
+
+        // Close dropdown selections instantly if the user clicks anywhere else on the screen
+        document.addEventListener("click", (e) => {
+            if (e.target !== startInput) {
+                startDropdown.style.display = "none";
+            }
+            if (e.target !== endInput) {
+                endDropdown.style.display = "none";
+            }
+        });
+
+        // Concurrent Dual-Geocoding Engine ---
+        async function geocodeAddress(query) {
+            if (!query) return null;
+            const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=1&bbox=122.9,24.3,146.3,45.5`;
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.features && data.features.length > 0) {
+                return data.features[0];
+            }
+            return null;
+        }
+
+        async function performDualSearch() {
+            const startQuery = startInput.value.trim();
+            const endQuery = endInput.value.trim();
+
+            if (!startQuery || !endQuery) {
+                statusText.innerText = "Please enter both locations";
+                statusText.style.color = "#ea4335";
+                return;
+            }
+
+            statusText.innerText = "Searching…";
+            statusText.style.color = "#1a73e8";
+
+            try {
+                let finalStartCoords = startCoords;
+                let finalEndCoords = endCoords;
+
+                // Fire geocoding queries concurrently only if we don't have resolved coordinates
+                const startPromise = finalStartCoords ? Promise.resolve(null) : geocodeAddress(startQuery);
+                const endPromise = finalEndCoords ? Promise.resolve(null) : geocodeAddress(endQuery);
+
+                const [startResult, endResult] = await Promise.all([startPromise, endPromise]);
+
+                if (!finalStartCoords) {
+                    if (!startResult) {
+                        statusText.innerText = "Start location not found";
+                        statusText.style.color = "#ea4335";
+                        return;
+                    }
+                    const [lon, lat] = startResult.geometry.coordinates;
+                    finalStartCoords = { lat, lon };
+                    startCoords = finalStartCoords;
+                    startMarker.setLngLat([lon, lat]).addTo(map);
+                }
+
+                if (!finalEndCoords) {
+                    if (!endResult) {
+                        statusText.innerText = "Destination not found";
+                        statusText.style.color = "#ea4335";
+                        return;
+                    }
+                    const [lon, lat] = endResult.geometry.coordinates;
+                    finalEndCoords = { lat, lon };
+                    endCoords = finalEndCoords;
+                    endMarker.setLngLat([lon, lat]).addTo(map);
+                }
+
+                // (Legacy custom A* geofence check removed; now handled by getRoute comparison logic)
+
+                // Calculate dynamic map boundary bounding box to show BOTH points instantly
+                const bounds = new maplibregl.LngLatBounds();
+                bounds.extend([finalStartCoords.lon, finalStartCoords.lat]);
+                bounds.extend([finalEndCoords.lon, finalEndCoords.lat]);
+
+                map.fitBounds(bounds, {
+                    padding: { top: 80, bottom: 80, left: 420, right: 80 },
+                    maxZoom: 15,
+                    duration: 1500
+                });
+
+                statusText.innerText = "Route computed";
+                statusText.style.color = "#137333";
+
+                // Invoke the active routing engine
+                getRoute(finalStartCoords, finalEndCoords);
+
+            } catch (error) {
+                console.error("Dual geocoding pipeline broke:", error);
+                statusText.innerText = "Geocoding error";
+                statusText.style.color = "#ea4335";
+            }
+        }
+
+        // Bind event hooks to button and keystroke actions
+        document.getElementById('dual-search-button').addEventListener('click', performDualSearch);
+
+        // Trigger search if user hits Enter inside either field
+        document.getElementById('search-start').addEventListener('keypress', (e) => { if (e.key === 'Enter') performDualSearch(); });
+        document.getElementById('search-end').addEventListener('keypress', (e) => { if (e.key === 'Enter') performDualSearch(); });
+    </script>
+</body>
+
+</html>
