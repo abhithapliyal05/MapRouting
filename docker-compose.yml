@@ -17,8 +17,8 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-      # first run builds tiles from the .pbf (~10+ min for Kanto); failures in this window don't count
-      start_period: 900s
+      # first run builds tiles from the .pbf (measured ~38 min for Kanto on 2 threads); failures in this window don't count
+      start_period: 3000s
     restart: unless-stopped
 
   astar:
