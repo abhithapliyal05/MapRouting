@@ -5,6 +5,7 @@ services:
     ports:
       - "8002:8002"
     volumes:
+      # read-write: Valhalla builds/refreshes its tiles in here
       - ./data:/custom_files
     environment:
       - server_threads=2
@@ -12,3 +13,37 @@ services:
       - build_admins=True
       - build_time_zones=False
       - build_tar=True
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8002/status"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+
+  astar:
+    build: ./backend
+    image: astar-backend:dev
+    ports:
+      - "8003:8003"
+    volumes:
+      # read-only: the bootstrap script fetches the data, the app never writes it
+      - ./data:/app/data:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    # healthcheck is defined in backend/Dockerfile
+
+  frontend:
+    build: ./frontend
+    image: frontend:dev
+    ports:
+      - "8080:8080"
+    depends_on:
+      valhalla:
+        condition: service_healthy
+      astar:
+        condition: service_healthy
+    restart: unless-stopped
