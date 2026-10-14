@@ -61,7 +61,7 @@ else
 fi
 
 # 4. Start the stack and wait for every healthcheck to pass
-log "starting stack (first run builds Valhalla tiles and first run builds tiles, ~40 min for Kanto)"
+log "starting stack (first run builds Valhalla tiles, ~40 min for Kanto; later runs take seconds)"
 docker compose up -d --build --wait --wait-timeout 3600
 
 docker compose ps
