@@ -37,8 +37,10 @@ else
   ok=0
   for mirror in "${OVERPASS_MIRRORS[@]}"; do
     log "trying $mirror"
-    if curl -fsSL --retry 2 --max-time 300 --data-urlencode "data=${query}" \
-         -o "$OSM_FILE.part" "$mirror"; then
+    # Overpass rejects curl's default headers (HTTP 406), so identify ourselves
+    if curl -fsSL --retry 2 --max-time 300 \
+         -A "TokyoRoutingBootstrap/1.0" -H "Accept: application/xml, text/xml, */*" \
+         --data-urlencode "data=${query}" -o "$OSM_FILE.part" "$mirror"; then
       mv "$OSM_FILE.part" "$OSM_FILE"; ok=1; break
     fi
     rm -f "$OSM_FILE.part"
