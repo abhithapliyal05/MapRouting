@@ -23,3 +23,22 @@ jobs:
         with:
           dockerfile: ${{ matrix.service }}/Dockerfile
           failure-threshold: warning
+
+  build:
+    name: Build image (${{ matrix.service }})
+    runs-on: ubuntu-24.04
+    needs: hadolint   # don't spend build minutes on a Dockerfile that fails lint
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: false          # build only for now; scan + publish come next
+          tags: ${{ matrix.service }}:ci
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
