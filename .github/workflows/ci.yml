@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: this workflow only needs to read the repo.
+permissions:
+  contents: read
+
+jobs:
+  hadolint:
+    name: Lint Dockerfiles (${{ matrix.service }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.service }}/Dockerfile
+          failure-threshold: warning
