@@ -38,7 +38,17 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ./${{ matrix.service }}
-          push: false          # build only for now; scan + publish come next
+          push: false          # publish comes in a later step, after the scan
+          load: true           # make the image available to the scanner below
           tags: ${{ matrix.service }}:ci
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+      # Pinned to a commit SHA, not a tag: this action was hit by a supply-chain attack
+      # earlier this year, and a tag can be moved but a SHA cannot. (v0.36.0)
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ matrix.service }}:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true   # only fail on CVEs that have a fix available
+          exit-code: '1'         # non-zero exit fails the job
+          format: table
