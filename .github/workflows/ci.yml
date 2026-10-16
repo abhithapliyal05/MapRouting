@@ -52,3 +52,53 @@ jobs:
           ignore-unfixed: true   # only fail on CVEs that have a fix available
           exit-code: '1'         # non-zero exit fails the job
           format: table
+      # Hand the exact scanned image to the publish job (no rebuild, so scanned == shipped)
+      - name: Save scanned image
+        run: docker save ${{ matrix.service }}:ci -o ${{ matrix.service }}.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.service }}
+          path: ${{ matrix.service }}.tar
+          retention-days: 1
+
+  publish:
+    name: Publish image (${{ matrix.service }})
+    runs-on: ubuntu-24.04
+    needs: build        # only runs if BOTH scans passed
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # The only job allowed to write packages; PR runs never get this.
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: image-${{ matrix.service }}
+      - name: Load scanned image
+        run: docker load -i ${{ matrix.service }}.tar
+      # No stored password: the workflow's own short-lived token logs in to GHCR.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # metadata-action lowercases the name (registries reject uppercase)
+          images: ghcr.io/${{ github.repository }}/${{ matrix.service }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest
+      - name: Tag and push
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          echo "$TAGS" | while read -r tag; do
+            docker tag ${{ matrix.service }}:ci "$tag"
+            docker push "$tag"
+          done
