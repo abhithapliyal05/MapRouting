@@ -9,7 +9,7 @@ astar:
     targetCPUUtilizationPercentage: 70   # of the CPU *request*, not of the node
   image:
     repository: ghcr.io/abhithapliyal05/maprouting/backend
-    tag: sha-3e3e93b          # immutable commit tag, never "latest"
+    tag: sha-9df887e          # immutable commit tag, never "latest"
   port: 8003
   resources:
     requests: {cpu: 100m, memory: 512Mi}
@@ -53,7 +53,7 @@ frontend:
     targetCPUUtilizationPercentage: 70
   image:
     repository: ghcr.io/abhithapliyal05/maprouting/frontend
-    tag: sha-3e3e93b
+    tag: sha-9df887e
   port: 8080
   resources:
     requests: {cpu: 25m, memory: 32Mi}
