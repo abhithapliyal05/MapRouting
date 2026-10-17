@@ -1,0 +1,33 @@
+# Traefik ingress controller for the LOCAL kind cluster only.
+# Install: helm upgrade --install traefik oci://ghcr.io/traefik/helm/traefik --version 42.0.0 \
+#            -n traefik --create-namespace -f k8s/traefik-values.yaml
+image:
+  registry: mirror.gcr.io      # Docker Hub's CDN is unreachable from this network (IPv6 reset)
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false    # no telemetry
+
+service:
+  spec:
+    type: NodePort             # kind has no cloud load balancer
+
+ports:
+  web:
+    nodePort: 30080            # kind maps host 127.0.0.1:8088 -> node :30080 (see kind-config.yaml)
+  websecure:
+    expose:
+      default: false           # no TLS locally; not exposed
+
+providers:
+  kubernetesCRD:
+    enabled: false             # we only use standard Ingress objects; smaller attack surface
+  kubernetesIngress:
+    enabled: true
+
+ingressClass:
+  isDefaultClass: true
+
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {memory: 256Mi}
