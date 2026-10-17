@@ -24,6 +24,26 @@ jobs:
           dockerfile: ${{ matrix.service }}/Dockerfile
           failure-threshold: warning
 
+  manifests:
+    name: Validate Kubernetes manifests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # kubeconform ships as a plain binary (no official Action). Version and SHA-256 are
+      # pinned here, so a swapped or corrupted download fails the job instead of running.
+      - name: Install kubeconform v0.8.0
+        env:
+          SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+        run: |
+          curl -fsSL -o kc.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+          echo "$SHA256  kc.tar.gz" | sha256sum -c -
+          tar -xzf kc.tar.gz kubeconform
+      # -strict rejects unknown fields (catches typos like "replica:"); kind-config.yaml is a
+      # kind-specific type with no Kubernetes schema, so it is skipped.
+      - name: Validate against Kubernetes 1.34 schemas
+        run: |
+          ./kubeconform -strict -summary -kubernetes-version 1.34.0             -ignore-filename-pattern 'kind-config\.yaml' k8s/
+
   build:
     name: Build image (${{ matrix.service }})
     runs-on: ubuntu-24.04
@@ -64,7 +84,7 @@ jobs:
   publish:
     name: Publish image (${{ matrix.service }})
     runs-on: ubuntu-24.04
-    needs: build        # only runs if BOTH scans passed
+    needs: [build, manifests]   # only runs if BOTH scans passed and the manifests validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     # The only job allowed to write packages; PR runs never get this.
     permissions:
