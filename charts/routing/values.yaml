@@ -1,7 +1,12 @@
 # Defaults. Environment differences live in values-dev.yaml / values-prod.yaml.
 
 astar:
-  replicas: 1
+  replicas: 1                 # used only when autoscaling is disabled
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3            # each replica holds ~470 MiB (the road graph), so this is also a memory cap
+    targetCPUUtilizationPercentage: 70   # of the CPU *request*, not of the node
   image:
     repository: ghcr.io/abhithapliyal05/maprouting/backend
     tag: sha-3e3e93b          # immutable commit tag, never "latest"
@@ -39,7 +44,12 @@ valhalla:
     limits: {memory: 2Gi}
 
 frontend:
-  replicas: 1
+  replicas: 1                 # used only when autoscaling is disabled
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
   image:
     repository: ghcr.io/abhithapliyal05/maprouting/frontend
     tag: sha-3e3e93b

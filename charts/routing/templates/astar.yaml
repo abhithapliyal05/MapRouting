@@ -6,7 +6,9 @@ metadata:
     {{- include "routing.labels" . | nindent 4 }}
     app.kubernetes.io/component: astar
 spec:
+  {{- if not .Values.astar.autoscaling.enabled }}
   replicas: {{ .Values.astar.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "routing.selector" (dict "root" . "component" "astar") | nindent 6 }}

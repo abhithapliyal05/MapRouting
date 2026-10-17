@@ -6,7 +6,9 @@ metadata:
     {{- include "routing.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
 spec:
+  {{- if not .Values.frontend.autoscaling.enabled }}
   replicas: {{ .Values.frontend.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "routing.selector" (dict "root" . "component" "frontend") | nindent 6 }}
