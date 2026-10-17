@@ -38,11 +38,30 @@ jobs:
           curl -fsSL -o kc.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
           echo "$SHA256  kc.tar.gz" | sha256sum -c -
           tar -xzf kc.tar.gz kubeconform
-      # -strict rejects unknown fields (catches typos like "replica:"); kind-config.yaml is a
-      # kind-specific type with no Kubernetes schema, so it is skipped.
-      - name: Validate against Kubernetes 1.34 schemas
+      # -strict rejects unknown fields (catches typos like "replica:"). Skipped: kind-config.yaml
+      # (kind-specific type, no Kubernetes schema) and traefik-values.yaml (Helm values, not an object).
+      - name: Validate raw manifests against Kubernetes 1.34 schemas
         run: |
-          ./kubeconform -strict -summary -kubernetes-version 1.34.0             -ignore-filename-pattern 'kind-config\.yaml' k8s/
+          ./kubeconform -strict -summary -kubernetes-version 1.34.0             -ignore-filename-pattern 'kind-config\.yaml'             -ignore-filename-pattern 'traefik-values\.yaml' k8s/
+      # Same pinning approach as kubeconform: version + SHA-256 (from get.helm.sh).
+      - name: Install helm v4.3.1
+        env:
+          SHA256: 0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
+        run: |
+          curl -fsSL -o helm.tar.gz https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz
+          echo "$SHA256  helm.tar.gz" | sha256sum -c -
+          tar -xzf helm.tar.gz linux-amd64/helm
+          echo "$PWD/linux-amd64" >> "$GITHUB_PATH"
+      # Lint, then render each environment and validate the RENDERED objects: a template can be
+      # valid YAML-in-Helm and still render an invalid Kubernetes object.
+      - name: Lint and validate the Helm chart (dev and prod values)
+        run: |
+          for env in dev prod; do
+            echo "::group::chart ($env values)"
+            helm lint charts/routing -f charts/routing/values-$env.yaml --strict
+            helm template routing charts/routing -n routing -f charts/routing/values-$env.yaml               | ./kubeconform -strict -summary -kubernetes-version 1.34.0 -
+            echo "::endgroup::"
+          done
 
   build:
     name: Build image (${{ matrix.service }})
