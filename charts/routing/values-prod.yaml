@@ -1,0 +1,32 @@
+# Production-shaped values (target: EKS, Day 5). NOT yet installed anywhere.
+# Differences from dev: real hostnames over HTTPS, a cloud volume instead of hostPath,
+# a pinned CI-published image, no dev-only settings (hostPath, *.localhost, insecure kubelet TLS).
+
+# PLACEHOLDER hostnames: replace once the domain / load balancer exists (Day 5).
+frontend_config:
+  valhallaUrl: "https://valhalla.routing.example.com"
+  astarUrl: "https://astar.routing.example.com"
+
+ingress:
+  hosts:
+    app: routing.example.com
+    valhalla: valhalla.routing.example.com
+    astar: astar.routing.example.com
+
+persistence:
+  hostPath:
+    enabled: false
+  # OPEN DESIGN QUESTION (decide on Day 5): Valhalla (read-write) and every A* replica share this
+  # one volume. EBS is ReadWriteOnce (single node), which breaks as soon as pods land on different
+  # nodes. ReadWriteMany needs EFS (assumed below) or a different data strategy (e.g. init download).
+  accessModes: [ReadWriteMany]
+  storageClass: efs-sc       # assumption: an EFS-backed StorageClass created in Day 5
+  size: 20Gi
+
+astar:
+  autoscaling:
+    maxReplicas: 5
+frontend:
+  autoscaling:
+    minReplicas: 2           # survive losing one node/pod
+    maxReplicas: 5

@@ -8,7 +8,8 @@ metadata:
 spec:
   capacity:
     storage: {{ .Values.persistence.size }}
-  accessModes: [ReadWriteOnce]
+  accessModes:
+    {{- toYaml .Values.persistence.accessModes | nindent 4 }}
   persistentVolumeReclaimPolicy: Retain
   storageClassName: {{ .Values.persistence.storageClass }}
   hostPath:
@@ -23,7 +24,8 @@ metadata:
   labels:
     {{- include "routing.labels" . | nindent 4 }}
 spec:
-  accessModes: [ReadWriteOnce]
+  accessModes:
+    {{- toYaml .Values.persistence.accessModes | nindent 4 }}
   storageClassName: {{ .Values.persistence.storageClass }}
   {{- if .Values.persistence.hostPath.enabled }}
   volumeName: {{ .Release.Name }}-{{ .Release.Namespace }}-map-data

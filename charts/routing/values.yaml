@@ -21,6 +21,7 @@ persistence:
   hostPath:
     enabled: true
     path: /data-host
+  accessModes: [ReadWriteOnce]
   storageClass: manual
   size: 20Gi
 
