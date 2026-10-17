@@ -615,8 +615,12 @@
 
     <div id="map"></div>
 
+    <!-- Runtime config: the default config.js points at localhost (Docker Compose);
+         Kubernetes mounts its own config.js with Ingress paths. One image, many environments. -->
+    <script src="config.js"></script>
     <script>
-        const backendUrl = "http://localhost:8002";
+        const backendUrl = window.APP_CONFIG.valhallaUrl;
+        const astarUrl = window.APP_CONFIG.astarUrl;
         let startCoords = null;
         let endCoords = null;
         let routingMode = 'auto';
@@ -821,7 +825,7 @@
             let query = {};
             if (engine === 'astar') {
                 query = { locations: [start, end], format: "json" };
-                url = `http://localhost:8003/route?json=${JSON.stringify(query)}`;
+                url = `${astarUrl}/route?json=${JSON.stringify(query)}`;
             } else {
                 query = { locations: [start, end], costing: routingMode, format: "json" };
                 url = `${backendUrl}/route?json=${JSON.stringify(query)}`;
