@@ -47,3 +47,7 @@ frontend:
   resources:
     requests: {cpu: 25m, memory: 32Mi}
     limits: {memory: 128Mi}      # measured ~18 MiB
+
+# Extra environment variables for Valhalla that must NOT live in git (none exist today).
+# Pass with: --set-string secrets.NAME=value
+secrets: {}

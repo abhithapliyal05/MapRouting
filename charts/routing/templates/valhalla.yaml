@@ -16,6 +16,11 @@ spec:
     metadata:
       labels:
         {{- include "routing.selector" (dict "root" . "component" "valhalla") | nindent 8 }}
+      annotations:
+        # ConfigMap/Secret changes don't restart pods by themselves. Hashing them into the pod
+        # template makes any config change alter the template, which triggers a rollout.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -27,10 +32,12 @@ spec:
           image: "{{ .Values.valhalla.image.repository }}@{{ .Values.valhalla.image.digest }}"
           ports:
             - {name: http, containerPort: {{ .Values.valhalla.port }}}
-          env:
-            {{- range $name, $value := .Values.valhalla.env }}
-            - {name: {{ $name }}, value: {{ $value | quote }}}
-            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-valhalla-config
+            - secretRef:
+                name: {{ .Release.Name }}-valhalla-secret
+                optional: true   # the Secret only exists when secrets.* values are provided
           # Hardening exception: the image's entrypoint runs its commands through sudo,
           # so allowPrivilegeEscalation must stay true. Still non-root (uid 59999).
           securityContext:

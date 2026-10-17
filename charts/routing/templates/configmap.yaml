@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-valhalla-config
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valhalla
+data:
+  {{- range $name, $value := .Values.valhalla.env }}
+  {{ $name }}: {{ $value | quote }}
+  {{- end }}
