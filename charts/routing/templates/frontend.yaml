@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-frontend
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "routing.selector" (dict "root" . "component" "frontend") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "routing.selector" (dict "root" . "component" "frontend") | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101           # the "nginx" user baked into nginx-unprivileged
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          ports:
+            - {name: http, containerPort: {{ .Values.frontend.port }}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          # nginx needs somewhere writable for its pid file and temp/cache dirs
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: cache, mountPath: /var/cache/nginx}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 20
+            failureThreshold: 3
+      volumes:
+        - {name: tmp, emptyDir: {}}
+        - {name: cache, emptyDir: {}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-frontend
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  selector:
+    {{- include "routing.selector" (dict "root" . "component" "frontend") | nindent 4 }}
+  ports:
+    - {name: http, port: {{ .Values.frontend.port }}, targetPort: http}

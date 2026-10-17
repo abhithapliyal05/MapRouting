@@ -18,3 +18,32 @@ persistence:
     path: /data-host
   storageClass: manual
   size: 20Gi
+
+valhalla:
+  replicas: 1
+  # Same digest as docker-compose.yml
+  image:
+    repository: ghcr.io/gis-ops/docker-valhalla/valhalla
+    digest: sha256:060da5b92e6024a67f65135c236d918b021d63e73d1808a0d55b7e7cbd17240c
+  port: 8002
+  env:
+    server_threads: "2"
+    build_elevation: "False"
+    build_admins: "True"          # only builds if the admin db is missing
+    build_time_zones: "False"
+    build_tar: "True"
+    use_tiles_ignore_pbf: "True"  # load existing tiles; never rebuild from the .pbf
+  # NOT yet load-tested (151 MiB idle in Compose). Day 8 sets real numbers.
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {memory: 2Gi}
+
+frontend:
+  replicas: 1
+  image:
+    repository: ghcr.io/abhithapliyal05/maprouting/frontend
+    tag: sha-3e3e93b
+  port: 8080
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {memory: 128Mi}      # measured ~18 MiB
