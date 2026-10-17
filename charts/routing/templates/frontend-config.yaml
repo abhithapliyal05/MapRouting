@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-frontend-config
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+data:
+  config.js: |
+    window.APP_CONFIG = {
+      valhallaUrl: {{ required "frontend_config.valhallaUrl is required" .Values.frontend_config.valhallaUrl | quote }},
+      astarUrl: {{ required "frontend_config.astarUrl is required" .Values.frontend_config.astarUrl | quote }},
+    };

@@ -14,6 +14,9 @@ spec:
     metadata:
       labels:
         {{- include "routing.selector" (dict "root" . "component" "frontend") | nindent 8 }}
+      annotations:
+        # config.js is mounted with subPath, which never auto-updates; this forces a rollout on change
+        checksum/config: {{ include (print $.Template.BasePath "/frontend-config.yaml") . | sha256sum }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -32,6 +35,8 @@ spec:
           volumeMounts:
             - {name: tmp, mountPath: /tmp}
             - {name: cache, mountPath: /var/cache/nginx}
+            # overrides the image's default config.js with this environment's URLs
+            - {name: config, mountPath: /usr/share/nginx/html/config.js, subPath: config.js, readOnly: true}
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
           readinessProbe:
@@ -44,6 +49,9 @@ spec:
       volumes:
         - {name: tmp, emptyDir: {}}
         - {name: cache, emptyDir: {}}
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-frontend-config
 ---
 apiVersion: v1
 kind: Service
