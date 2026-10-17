@@ -1,0 +1,28 @@
+# Local-only: a PersistentVolume backed by the folder mounted into the kind node
+# (see extraMounts in kind-config.yaml). On a real cluster this becomes a cloud disk.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: map-data
+spec:
+  capacity:
+    storage: 20Gi        # nominal for hostPath; not enforced
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain   # never delete the host's map data when the claim goes away
+  storageClassName: manual
+  hostPath:
+    path: /data-host
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: map-data
+  namespace: routing
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: manual
+  volumeName: map-data   # bind to the PV above explicitly
+  resources:
+    requests:
+      storage: 20Gi
