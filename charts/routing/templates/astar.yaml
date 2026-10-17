@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-astar
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: astar
+spec:
+  replicas: {{ .Values.astar.replicas }}
+  selector:
+    matchLabels:
+      {{- include "routing.selector" (dict "root" . "component" "astar") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "routing.selector" (dict "root" . "component" "astar") | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: astar
+          image: "{{ .Values.astar.image.repository }}:{{ .Values.astar.image.tag }}"
+          ports:
+            - {name: http, containerPort: {{ .Values.astar.port }}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: map-data, mountPath: /app/data, readOnly: true}
+          resources:
+            {{- toYaml .Values.astar.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: map-data
+          persistentVolumeClaim:
+            claimName: {{ include "routing.dataClaim" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-astar
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: astar
+spec:
+  selector:
+    {{- include "routing.selector" (dict "root" . "component" "astar") | nindent 4 }}
+  ports:
+    - {name: http, port: {{ .Values.astar.port }}, targetPort: http}

@@ -1,0 +1,33 @@
+{{- if .Values.persistence.hostPath.enabled }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Release.Name }}-{{ .Release.Namespace }}-map-data   # PVs are cluster-scoped, so include the namespace
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.size }}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.persistence.storageClass }}
+  hostPath:
+    path: {{ .Values.persistence.hostPath.path }}
+    type: Directory
+---
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "routing.dataClaim" . }}
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- if .Values.persistence.hostPath.enabled }}
+  volumeName: {{ .Release.Name }}-{{ .Release.Namespace }}-map-data
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}

@@ -1,0 +1,20 @@
+# Defaults. Environment differences live in values-dev.yaml / values-prod.yaml.
+
+astar:
+  replicas: 1
+  image:
+    repository: ghcr.io/abhithapliyal05/maprouting/backend
+    tag: sha-3e3e93b          # immutable commit tag, never "latest"
+  port: 8003
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {memory: 768Mi}   # measured ~470 MiB steady state
+
+persistence:
+  # Dev: a hostPath PV backed by the kind node's mounted folder (see k8s/kind-config.yaml).
+  # Prod: set hostPath.enabled=false and provide a storageClass (EKS, Day 5).
+  hostPath:
+    enabled: true
+    path: /data-host
+  storageClass: manual
+  size: 20Gi
