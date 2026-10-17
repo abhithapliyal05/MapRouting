@@ -1,0 +1,29 @@
+{{- /* Valhalla is deliberately excluded: it writes to a ReadWriteOnce volume, so a second replica
+       would be a second writer on the same files. */ -}}
+{{- range $component := list "astar" "frontend" }}
+{{- $cfg := index $.Values $component }}
+{{- if $cfg.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $.Release.Name }}-{{ $component }}
+  labels:
+    {{- include "routing.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $.Release.Name }}-{{ $component }}
+  minReplicas: {{ $cfg.autoscaling.minReplicas }}
+  maxReplicas: {{ $cfg.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $cfg.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}

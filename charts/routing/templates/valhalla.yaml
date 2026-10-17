@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-valhalla
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valhalla
+spec:
+  replicas: {{ .Values.valhalla.replicas }}
+  strategy:
+    type: Recreate        # one pod owns the data volume; never run two during a rollout
+  selector:
+    matchLabels:
+      {{- include "routing.selector" (dict "root" . "component" "valhalla") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "routing.selector" (dict "root" . "component" "valhalla") | nindent 8 }}
+      annotations:
+        # ConfigMap/Secret changes don't restart pods by themselves. Hashing them into the pod
+        # template makes any config change alter the template, which triggers a rollout.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 59999
+        runAsGroup: 59999
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: valhalla
+          image: "{{ .Values.valhalla.image.repository }}@{{ .Values.valhalla.image.digest }}"
+          ports:
+            - {name: http, containerPort: {{ .Values.valhalla.port }}}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-valhalla-config
+            - secretRef:
+                name: {{ .Release.Name }}-valhalla-secret
+                optional: true   # the Secret only exists when secrets.* values are provided
+          # Hardening exception: the image's entrypoint runs its commands through sudo,
+          # so allowPrivilegeEscalation must stay true. Still non-root (uid 59999).
+          securityContext:
+            allowPrivilegeEscalation: true
+          volumeMounts:
+            # read-write: the entrypoint rewrites valhalla.json and fixes file permissions here
+            - {name: map-data, mountPath: /custom_files}
+          resources:
+            {{- toYaml .Values.valhalla.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /status, port: http}
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /status, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: {path: /status, port: http}
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: map-data
+          persistentVolumeClaim:
+            claimName: {{ include "routing.dataClaim" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-valhalla
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valhalla
+spec:
+  selector:
+    {{- include "routing.selector" (dict "root" . "component" "valhalla") | nindent 4 }}
+  ports:
+    - {name: http, port: {{ .Values.valhalla.port }}, targetPort: http}

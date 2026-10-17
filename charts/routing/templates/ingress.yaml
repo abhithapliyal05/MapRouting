@@ -1,0 +1,37 @@
+{{- if .Values.ingress.enabled }}
+{{- $app := required "ingress.hosts.app is required when ingress is enabled" .Values.ingress.hosts.app }}
+{{- $valhalla := required "ingress.hosts.valhalla is required" .Values.ingress.hosts.valhalla }}
+{{- $astar := required "ingress.hosts.astar is required" .Values.ingress.hosts.astar }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ $app }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: {{ .Release.Name }}-frontend, port: {number: {{ .Values.frontend.port }}}}
+    - host: {{ $valhalla }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: {{ .Release.Name }}-valhalla, port: {number: {{ .Values.valhalla.port }}}}
+    - host: {{ $astar }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: {{ .Release.Name }}-astar, port: {number: {{ .Values.astar.port }}}}
+{{- end }}

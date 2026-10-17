@@ -1,16 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: astar
-  namespace: routing
-  labels: {app: astar}
+  name: {{ .Release.Name }}-astar
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: astar
 spec:
-  replicas: 1
+  {{- if not .Values.astar.autoscaling.enabled }}
+  replicas: {{ .Values.astar.replicas }}
+  {{- end }}
   selector:
-    matchLabels: {app: astar}
+    matchLabels:
+      {{- include "routing.selector" (dict "root" . "component" "astar") | nindent 6 }}
   template:
     metadata:
-      labels: {app: astar}
+      labels:
+        {{- include "routing.selector" (dict "root" . "component" "astar") | nindent 8 }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -18,25 +23,21 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: astar
-          image: ghcr.io/abhithapliyal05/maprouting/backend:sha-3e3e93b
+          image: "{{ .Values.astar.image.repository }}:{{ .Values.astar.image.tag }}"
           ports:
-            - {name: http, containerPort: 8003}
+            - {name: http, containerPort: {{ .Values.astar.port }}}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
           volumeMounts:
             - {name: map-data, mountPath: /app/data, readOnly: true}
-          # Measured: ~470 MiB steady state in Compose. Limit leaves ~1.6x headroom.
           resources:
-            requests: {cpu: 100m, memory: 512Mi}
-            limits: {memory: 768Mi}
-          # The graph is built before the server listens, so give startup room first;
-          # liveness/readiness only begin once this succeeds.
+            {{- toYaml .Values.astar.resources | nindent 12 }}
           startupProbe:
             httpGet: {path: /health, port: http}
             periodSeconds: 5
-            failureThreshold: 30     # up to 150 s
+            failureThreshold: 30
           readinessProbe:
             httpGet: {path: /health, port: http}
             periodSeconds: 10
@@ -49,14 +50,17 @@ spec:
       volumes:
         - name: map-data
           persistentVolumeClaim:
-            claimName: map-data
+            claimName: {{ include "routing.dataClaim" . }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: astar
-  namespace: routing
+  name: {{ .Release.Name }}-astar
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: astar
 spec:
-  selector: {app: astar}
+  selector:
+    {{- include "routing.selector" (dict "root" . "component" "astar") | nindent 4 }}
   ports:
-    - {name: http, port: 8003, targetPort: http}
+    - {name: http, port: {{ .Values.astar.port }}, targetPort: http}

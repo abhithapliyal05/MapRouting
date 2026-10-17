@@ -1,0 +1,16 @@
+# Local kind cluster. Traefik is reachable on the host at 127.0.0.1:8088 (see k8s/kind-config.yaml);
+# browsers resolve *.localhost to loopback automatically.
+frontend_config:
+  valhallaUrl: "http://valhalla.localhost:8088"
+  astarUrl: "http://astar.localhost:8088"
+
+ingress:
+  hosts:
+    app: app.localhost
+    valhalla: valhalla.localhost
+    astar: astar.localhost
+
+persistence:
+  hostPath:
+    enabled: true
+    path: /data-host

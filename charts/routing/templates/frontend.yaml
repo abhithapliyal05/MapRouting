@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-frontend
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  {{- if not .Values.frontend.autoscaling.enabled }}
+  replicas: {{ .Values.frontend.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "routing.selector" (dict "root" . "component" "frontend") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "routing.selector" (dict "root" . "component" "frontend") | nindent 8 }}
+      annotations:
+        # config.js is mounted with subPath, which never auto-updates; this forces a rollout on change
+        checksum/config: {{ include (print $.Template.BasePath "/frontend-config.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101           # the "nginx" user baked into nginx-unprivileged
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          ports:
+            - {name: http, containerPort: {{ .Values.frontend.port }}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          # nginx needs somewhere writable for its pid file and temp/cache dirs
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: cache, mountPath: /var/cache/nginx}
+            # overrides the image's default config.js with this environment's URLs
+            - {name: config, mountPath: /usr/share/nginx/html/config.js, subPath: config.js, readOnly: true}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 20
+            failureThreshold: 3
+      volumes:
+        - {name: tmp, emptyDir: {}}
+        - {name: cache, emptyDir: {}}
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-frontend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-frontend
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  selector:
+    {{- include "routing.selector" (dict "root" . "component" "frontend") | nindent 4 }}
+  ports:
+    - {name: http, port: {{ .Values.frontend.port }}, targetPort: http}

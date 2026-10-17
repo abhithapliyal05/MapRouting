@@ -1,0 +1,78 @@
+# Defaults. Environment differences live in values-dev.yaml / values-prod.yaml.
+
+astar:
+  replicas: 1                 # used only when autoscaling is disabled
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3            # each replica holds ~470 MiB (the road graph), so this is also a memory cap
+    targetCPUUtilizationPercentage: 70   # of the CPU *request*, not of the node
+  image:
+    repository: ghcr.io/abhithapliyal05/maprouting/backend
+    tag: sha-3e3e93b          # immutable commit tag, never "latest"
+  port: 8003
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {memory: 768Mi}   # measured ~470 MiB steady state
+
+persistence:
+  # Dev: a hostPath PV backed by the kind node's mounted folder (see k8s/kind-config.yaml).
+  # Prod: set hostPath.enabled=false and provide a storageClass (EKS, Day 5).
+  hostPath:
+    enabled: true
+    path: /data-host
+  accessModes: [ReadWriteOnce]
+  storageClass: manual
+  size: 20Gi
+
+valhalla:
+  replicas: 1
+  # Same digest as docker-compose.yml
+  image:
+    repository: ghcr.io/gis-ops/docker-valhalla/valhalla
+    digest: sha256:060da5b92e6024a67f65135c236d918b021d63e73d1808a0d55b7e7cbd17240c
+  port: 8002
+  env:
+    server_threads: "2"
+    build_elevation: "False"
+    build_admins: "True"          # only builds if the admin db is missing
+    build_time_zones: "False"
+    build_tar: "True"
+    use_tiles_ignore_pbf: "True"  # load existing tiles; never rebuild from the .pbf
+  # NOT yet load-tested (151 MiB idle in Compose). Day 8 sets real numbers.
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {memory: 2Gi}
+
+frontend:
+  replicas: 1                 # used only when autoscaling is disabled
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+  image:
+    repository: ghcr.io/abhithapliyal05/maprouting/frontend
+    tag: sha-3e3e93b
+  port: 8080
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {memory: 128Mi}      # measured ~18 MiB
+
+# Extra environment variables for Valhalla that must NOT live in git (none exist today).
+# Pass with: --set-string secrets.NAME=value
+secrets: {}
+
+# Runtime config served to the browser as /config.js (the browser calls the backends directly,
+# so these must be URLs the *browser* can reach). No defaults: each environment must set them.
+frontend_config:
+  valhallaUrl: ""
+  astarUrl: ""
+
+ingress:
+  enabled: true
+  className: ""        # empty = the cluster's default IngressClass
+  hosts:
+    app: ""            # required when ingress.enabled
+    valhalla: ""
+    astar: ""
