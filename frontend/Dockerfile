@@ -1,6 +1,6 @@
 # Static site, no build step, so a single stage is the honest choice.
 # nginx-unprivileged runs as uid 101 and listens on 8080 (non-root cannot bind 80).
-FROM nginxinc/nginx-unprivileged:1.30-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 # Patch an OS package the upstream base image has not been rebuilt with yet (Trivy: CVE-2026-111497,
 # brotli-libs 1.2.0-r1, fixed in 1.2.1-r0). Root is needed only for this one command.
 # Remove once the base image ships the fix.
