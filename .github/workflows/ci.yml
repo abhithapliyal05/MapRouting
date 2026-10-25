@@ -63,6 +63,27 @@ jobs:
             echo "::endgroup::"
           done
 
+  alerts:
+    name: Validate alert rules and dashboard
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # Same helm pin as the manifests job. The rules only render with monitoring.enabled=true.
+      - name: Install helm v4.3.1
+        env:
+          SHA256: 0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
+        run: |
+          curl -fsSL -o helm.tar.gz https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz
+          echo "$SHA256  helm.tar.gz" | sha256sum -c -
+          tar -xzf helm.tar.gz linux-amd64/helm && sudo mv linux-amd64/helm /usr/local/bin/helm
+      # promtool is Prometheus's own checker; a typo in a PromQL rule would otherwise silently produce no alert.
+      - name: promtool check rules
+        run: |
+          helm template routing charts/routing -n routing -f charts/routing/values-dev.yaml --set monitoring.enabled=true --show-only templates/monitoring.yaml | yq 'select(.kind == "PrometheusRule") | {"groups": .spec.groups}' > rules.yaml
+          docker run --rm --entrypoint promtool -v "$PWD:/w:ro" quay.io/prometheus/prometheus@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996 check rules /w/rules.yaml
+      - name: Dashboard JSON is valid and has panels
+        run: python3 -c "import json; d=json.load(open('charts/routing/files/dashboard.json')); assert len(d['panels'])>=8, 'too few panels'; print('dashboard OK:', len(d['panels']), 'panels')"
+
   iac:
     name: Terraform checks and secret scan
     runs-on: ubuntu-24.04
