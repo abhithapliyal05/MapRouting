@@ -8,7 +8,7 @@ Pick three. Every figure below is something that actually happened in this repo;
 
 **Kubernetes and Helm**
 - Packaged a three-service routing platform as a Helm chart with dev and prod values, host-based Traefik Ingress, ConfigMap/Secret-driven config with checksum-triggered rollouts, and HPAs, validated in CI with `helm lint --strict` and `kubeconform` against rendered output.
-- Verified autoscaling by load-testing the A* service on a kind cluster (scaled 1 to 3 replicas in about 30 seconds); identified from the data that the CPU request was an order of magnitude too low.
+- Verified autoscaling with a short load smoke test on a kind cluster (the A* service scaled from 1 to 3 replicas in about 30 seconds); the measurements showed each replica saturating about one CPU core against a 100m request, flagging the request as far too low. (Replace with real load-test numbers after Day 9.)
 
 **Debugging and judgement**
 - Diagnosed spurious pod restarts to a CRLF/LF difference in Helm template text hashed into pod annotations, and fixed it repo-wide with `.gitattributes`, verified by a no-op second `helm upgrade`.
