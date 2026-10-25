@@ -35,6 +35,20 @@ spec:
           annotations:
             summary: '{{ "{{ $labels.service }}" }} is returning 5xx on more than {{ .Values.monitoring.alerts.errorRatePercent }}% of requests'
             description: 'Measured at the ingress over 2 minutes. Check the pods behind {{ "{{ $labels.service }}" }}.'
+        # Per-service errors only cover responses a BACKEND returned. When a Service has no endpoints,
+        # Traefik answers 503 itself at the entrypoint and nothing is attributed to the service, so this
+        # alert watches the entrypoint, which sees everything a client sees.
+        - alert: RoutingIngress5xx
+          expr: |
+            100 * sum(rate(traefik_entrypoint_requests_total{entrypoint="web",code=~"5.."}[2m]))
+              / sum(rate(traefik_entrypoint_requests_total{entrypoint="web"}[2m]))
+              > {{ .Values.monitoring.alerts.errorRatePercent }}
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: 'More than {{ .Values.monitoring.alerts.errorRatePercent }}% of all requests through the ingress are failing with 5xx'
+            description: 'Includes 503s Traefik returns itself when a route has no healthy backend, which per-service metrics cannot see.'
         - alert: RoutingServiceUnavailable
           expr: kube_deployment_status_replicas_available{namespace="{{ .Release.Namespace }}"} == 0
           for: 1m

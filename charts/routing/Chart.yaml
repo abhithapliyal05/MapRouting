@@ -2,5 +2,5 @@ apiVersion: v2
 name: routing
 description: Tokyo routing platform - Valhalla, a custom A* backend and a MapLibre frontend
 type: application
-version: 0.1.1        # chart version: bump when templates change
+version: 0.1.2        # chart version: bump when templates change
 appVersion: "sha-9df887e"   # informational; image tags come from values

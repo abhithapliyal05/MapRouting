@@ -59,7 +59,19 @@ resource "helm_release" "monitoring" {
   repository       = "oci://ghcr.io/prometheus-community/charts"
   chart            = "kube-prometheus-stack"
   version          = "92.13.1"
-  values           = [file("${local.repo_root}/k8s/monitoring-values.yaml")]
+  values = [
+    file("${local.repo_root}/k8s/monitoring-values.yaml"),
+    # LOCAL ONLY: anonymous read-only access, so the dashboard can be opened (and screenshotted) without
+    # typing a password. Viewers cannot change anything, and Grafana is reachable only through a
+    # localhost port-forward. Never enable this on a shared or cloud cluster.
+    yamlencode({
+      grafana = {
+        "grafana.ini" = {
+          "auth.anonymous" = { enabled = true, org_role = "Viewer" }
+        }
+      }
+    }),
+  ]
 
   # Generated per apply and kept in (git-ignored) state; never written into a file in the repo.
   set_sensitive = [{

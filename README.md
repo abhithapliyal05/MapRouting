@@ -37,6 +37,7 @@ This table is deliberately blunt. Code that was written and validated but never 
 | Helm chart, Traefik Ingress, HPA, metrics-server | Ran on a local `kind` cluster |
 | End-to-end deploy test: ephemeral cluster, smoke test, deliberately broken deploy, `helm rollback` | Ran on GitHub Actions (every pull request and push) |
 | `terraform/local`: the local cluster, add-ons and chart as code | Ran locally: `apply`, `plan` (no drift), `destroy`, `apply` again |
+| Prometheus, Alertmanager, Grafana, the dashboard and alert rules | Ran on the local `kind` cluster; alerts were made to fire by deliberately taking Valhalla down (see `docs/monitoring.md`) |
 | `terraform/aws-reference`: VPC, EKS, ECR, GitHub OIDC role, S3 | Formatted, validated and security-scanned in CI. **Never applied** |
 | `values-prod.yaml` | Rendered and schema-validated in CI only. **Never installed.** It contains placeholder hostnames and assumes a storage class that does not exist locally |
 | Any cloud (AWS, GCP) | **Not used.** No cloud resources were ever created |
@@ -85,6 +86,8 @@ Open http://app.localhost:8088 (browsers resolve `*.localhost` to your own machi
 | `terraform/aws-reference/` | EKS/VPC/ECR/OIDC/S3 reference design: validated and scanned, never applied |
 | `ci/` | Cropped map fixture (10.7k nodes) and config for the CI end-to-end test, plus the script that regenerates it |
 | `scripts/smoke-test.sh` | End-to-end checks through the Ingress; used by CI and runnable locally |
+| `docs/monitoring.md` | What is measured, the alert rules, and the monitoring problems found and fixed |
+| `k8s/monitoring-values.yaml` | kube-prometheus-stack settings for the local cluster |
 | `.github/workflows/ci.yml` | CI pipeline (see below) |
 
 ## CI pipeline
@@ -109,6 +112,8 @@ Third-party tools are pinned by version and checksum or commit SHA, and the toke
 - **A cross-platform bug found by reading a diff.** Helm checksum annotations (used to restart pods when config changes) hash template *text*. A Windows checkout with CRLF endings produced a different hash than Linux, causing spurious restarts of Valhalla (which uses a `Recreate` strategy, so each one is downtime). `.gitattributes` now forces LF everywhere, and a second `helm upgrade` is verified to change nothing.
 - **Valhalla is not autoscaled.** It writes to a `ReadWriteOnce` volume that its entrypoint modifies, so a second replica would be a second writer on the same files. Only the stateless A\* backend and frontend have HPAs.
 - **A deploy pipeline without a cloud.** The end-to-end job proves what a CD pipeline should prove: the artifact deploys, a bad release fails visibly instead of silently, the old version keeps serving during the failed rollout, and rollback restores a working state, all asserted by a script and not by eye.
+- **An alert that could not fire, found by testing it.** The first error-rate alert watched per-service 5xx metrics. A deliberate outage (Valhalla scaled to zero) showed that Traefik answers `503` itself when a route has no backend and attributes nothing to the service, so that alert stayed silent while every request failed. An ingress-level alert and dashboard panel now cover it. Alerts need to be exercised, not just written.
+- **A silent label collision.** Traefik and the Prometheus `ServiceMonitor` both set a `service` label, so Prometheus renamed Traefik's to `exported_service` and every dashboard query returned nothing, without an error. `honorLabels: true` fixes it.
 - **A secret nearly committed, and caught.** The kind Terraform provider writes a kubeconfig (with client keys) beside the Terraform code, and a careless `git add` staged it into a local commit. Inspecting `git ls-files` caught it before any push; the commit was rewritten, the pattern ignored, and a repository-wide secret scan added to CI so this class of mistake fails the build.
 - **IaC findings fixed, not silenced.** A Trivy scan of the AWS reference code found a public Kubernetes API endpoint (CRITICAL) and a bucket without a customer-managed key (HIGH). Both were fixed in the code. The one accepted finding (worker egress) is documented with its reason in `.trivyignore`.
 - **Probes match the startup behavior.** The A\* backend builds its road graph before it listens, so a `startupProbe` holds off liveness and readiness checks instead of letting them kill the pod mid-start.
