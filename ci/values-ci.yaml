@@ -1,0 +1,9 @@
+# Overrides for the CI end-to-end job, layered on top of charts/routing/values-dev.yaml.
+# Images are the ones built in this same workflow run, loaded into the cluster by "kind load".
+astar:
+  image: {repository: backend, tag: ci}
+frontend:
+  image: {repository: frontend, tag: ci}
+valhalla:
+  env:
+    build_admins: "False"   # the cropped fixture has no admin boundaries to build from
