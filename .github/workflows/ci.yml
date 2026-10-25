@@ -18,8 +18,8 @@ jobs:
       matrix:
         service: [backend, frontend]
     steps:
-      - uses: actions/checkout@v4
-      - uses: hadolint/hadolint-action@v3.1.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
         with:
           dockerfile: ${{ matrix.service }}/Dockerfile
           failure-threshold: warning
@@ -28,7 +28,7 @@ jobs:
     name: Validate Kubernetes manifests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # kubeconform ships as a plain binary (no official Action). Version and SHA-256 are
       # pinned here, so a swapped or corrupted download fails the job instead of running.
       - name: Install kubeconform v0.8.0
@@ -67,7 +67,7 @@ jobs:
     name: Validate alert rules and dashboard
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Same helm pin as the manifests job. The rules only render with monitoring.enabled=true.
       - name: Install helm v4.3.1
         env:
@@ -88,7 +88,7 @@ jobs:
     name: Terraform checks and secret scan
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Same pinning approach as the other tools: version + SHA-256 (from releases.hashicorp.com).
       - name: Install terraform v1.16.6
         env:
@@ -140,9 +140,9 @@ jobs:
       matrix:
         service: [backend, frontend]
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./${{ matrix.service }}
           push: false          # publish comes in a later step, after the scan
@@ -162,7 +162,7 @@ jobs:
       # Hand the exact scanned image to the publish job (no rebuild, so scanned == shipped)
       - name: Save scanned image
         run: docker save ${{ matrix.service }}:ci -o ${{ matrix.service }}.tar
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: image-${{ matrix.service }}
           path: ${{ matrix.service }}.tar
@@ -173,8 +173,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs: build        # uses the exact images the build job scanned
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: image-*
           merge-multiple: true
@@ -244,19 +244,19 @@ jobs:
       matrix:
         service: [backend, frontend]
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: image-${{ matrix.service }}
       - name: Load scanned image
         run: docker load -i ${{ matrix.service }}.tar
       # No stored password: the workflow's own short-lived token logs in to GHCR.
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           # metadata-action lowercases the name (registries reject uppercase)
           images: ghcr.io/${{ github.repository }}/${{ matrix.service }}
