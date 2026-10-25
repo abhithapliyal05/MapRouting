@@ -102,6 +102,7 @@ Open http://app.localhost:8088 (browsers resolve `*.localhost` to your own machi
 | `docs/monitoring.md` | What is measured, the alert rules, and the monitoring problems found and fixed |
 | `docs/capacity-report.md` | Load-test results, the saturation point of each service, and the settings derived from them |
 | `loadtest/` | k6 script, step-test runner, autoscaler validation, charts, verified test trips and raw results |
+| `docs/interview-prep.md` | Questions (with folded answers) and break-it exercises for every part of the project |
 | `k8s/monitoring-values.yaml` | kube-prometheus-stack settings for the local cluster |
 | `.github/workflows/ci.yml` | CI pipeline (see below) |
 
