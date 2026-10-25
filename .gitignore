@@ -10,3 +10,8 @@ data/*
 crash.log
 *.tfvars
 !*.tfvars.example
+
+# kubeconfigs written by the kind provider contain client keys: never commit
+terraform/**/*-config
+kubeconfig*
+*.kubeconfig
