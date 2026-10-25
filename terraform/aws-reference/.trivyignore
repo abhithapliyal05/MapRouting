@@ -1,0 +1,6 @@
+# Accepted findings, each with its reason. Anything not listed here fails CI.
+
+# AWS-0104: the EKS module's node security group allows all egress.
+# Worker nodes need outbound access, through the NAT gateway, to pull images and call AWS APIs.
+# Hardening path: replace it with VPC endpoints (ECR, S3, STS) and a restrictive egress rule.
+AWS-0104
