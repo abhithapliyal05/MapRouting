@@ -35,6 +35,9 @@ This table is deliberately blunt. Code that was written and validated but never 
 | CI: Dockerfile lint, image build, Trivy scan, publish to GHCR | Ran on GitHub Actions |
 | Kubernetes manifests validation (kubeconform) and chart lint | Ran on GitHub Actions |
 | Helm chart, Traefik Ingress, HPA, metrics-server | Ran on a local `kind` cluster |
+| End-to-end deploy test: ephemeral cluster, smoke test, deliberately broken deploy, `helm rollback` | Ran on GitHub Actions (every pull request and push) |
+| `terraform/local`: the local cluster, add-ons and chart as code | Ran locally: `apply`, `plan` (no drift), `destroy`, `apply` again |
+| `terraform/aws-reference`: VPC, EKS, ECR, GitHub OIDC role, S3 | Formatted, validated and security-scanned in CI. **Never applied** |
 | `values-prod.yaml` | Rendered and schema-validated in CI only. **Never installed.** It contains placeholder hostnames and assumes a storage class that does not exist locally |
 | Any cloud (AWS, GCP) | **Not used.** No cloud resources were ever created |
 
@@ -64,7 +67,9 @@ helm upgrade --install routing charts/routing -n routing --create-namespace \
   -f charts/routing/values-dev.yaml
 ```
 
-Open http://app.localhost:8088 (browsers resolve `*.localhost` to your own machine; for `curl` send a `Host:` header to `127.0.0.1:8088`).
+Open http://app.localhost:8088 (browsers resolve `*.localhost` to your own machine; for `curl` send a `Host:` header to `127.0.0.1:8088`). To check the whole deployment through the Ingress: `./scripts/smoke-test.sh`.
+
+**The same thing as code:** `terraform/local` creates the cluster, Traefik, metrics-server and the chart with one `terraform apply` (and removes them with `terraform destroy`). See `terraform/local/README.md`.
 
 ## Repository layout
 
@@ -76,6 +81,10 @@ Open http://app.localhost:8088 (browsers resolve `*.localhost` to your own machi
 | `scripts/bootstrap.sh` | One-command setup (`set -euo pipefail`, pre-flight checks, atomic downloads) |
 | `charts/routing/` | Helm chart: Deployments, Services, Ingress, ConfigMaps, optional Secret, HPA, dev/prod values |
 | `k8s/` | kind cluster config, Traefik values, vendored metrics-server |
+| `terraform/local/` | The local cluster, add-ons and chart as Terraform (applied and verified locally) |
+| `terraform/aws-reference/` | EKS/VPC/ECR/OIDC/S3 reference design: validated and scanned, never applied |
+| `ci/` | Cropped map fixture (10.7k nodes) and config for the CI end-to-end test, plus the script that regenerates it |
+| `scripts/smoke-test.sh` | End-to-end checks through the Ingress; used by CI and runnable locally |
 | `.github/workflows/ci.yml` | CI pipeline (see below) |
 
 ## CI pipeline
@@ -85,7 +94,9 @@ Runs on every pull request and every push to `main`:
 1. **hadolint** lints each Dockerfile.
 2. **Manifests job** validates raw manifests and the **rendered** Helm chart (dev and prod values) against Kubernetes 1.34 schemas with `kubeconform -strict`, after `helm lint --strict`.
 3. **Build** builds each image after lint passes, then **Trivy** scans it and fails the build on fixable HIGH/CRITICAL vulnerabilities.
-4. **Publish** (push to `main` only) pushes the exact scanned image to GHCR tagged `sha-<commit>`. It needs both the build/scan and the manifest validation to pass, and it is the only job with `packages: write`.
+4. **End-to-end deploy** starts an ephemeral `kind` cluster, loads the images built and scanned in the same run, installs Traefik and the chart, and smoke-tests real routes through the Ingress. It then deploys a release with a nonexistent image tag on purpose, checks that the failure is reported and the service stays up, rolls back with `helm rollback`, and smoke-tests again. It uses a cropped map fixture so both routing engines work in CI.
+5. **Terraform and secrets** runs `fmt`, `init -backend=false` and `validate` on both Terraform directories, a Trivy misconfiguration scan of the AWS reference code, and a secret scan of the whole repository.
+6. **Publish** (push to `main` only) pushes the exact scanned image to GHCR tagged `sha-<commit>`. It needs the build/scan, manifest validation, end-to-end deploy and Terraform/secret checks to pass, and it is the only job with `packages: write`.
 
 Third-party tools are pinned by version and checksum or commit SHA, and the token is read-only by default.
 
@@ -97,6 +108,9 @@ Third-party tools are pinned by version and checksum or commit SHA, and the toke
 - **Replaced a retired component.** The standard choice, `ingress-nginx`, turned out to be archived (maintenance ended March 2026), so the cluster uses Traefik with a pinned chart and only the standard Ingress provider enabled.
 - **A cross-platform bug found by reading a diff.** Helm checksum annotations (used to restart pods when config changes) hash template *text*. A Windows checkout with CRLF endings produced a different hash than Linux, causing spurious restarts of Valhalla (which uses a `Recreate` strategy, so each one is downtime). `.gitattributes` now forces LF everywhere, and a second `helm upgrade` is verified to change nothing.
 - **Valhalla is not autoscaled.** It writes to a `ReadWriteOnce` volume that its entrypoint modifies, so a second replica would be a second writer on the same files. Only the stateless A\* backend and frontend have HPAs.
+- **A deploy pipeline without a cloud.** The end-to-end job proves what a CD pipeline should prove: the artifact deploys, a bad release fails visibly instead of silently, the old version keeps serving during the failed rollout, and rollback restores a working state, all asserted by a script and not by eye.
+- **A secret nearly committed, and caught.** The kind Terraform provider writes a kubeconfig (with client keys) beside the Terraform code, and a careless `git add` staged it into a local commit. Inspecting `git ls-files` caught it before any push; the commit was rewritten, the pattern ignored, and a repository-wide secret scan added to CI so this class of mistake fails the build.
+- **IaC findings fixed, not silenced.** A Trivy scan of the AWS reference code found a public Kubernetes API endpoint (CRITICAL) and a bucket without a customer-managed key (HIGH). Both were fixed in the code. The one accepted finding (worker egress) is documented with its reason in `.trivyignore`.
 - **Probes match the startup behavior.** The A\* backend builds its road graph before it listens, so a `startupProbe` holds off liveness and readiness checks instead of letting them kill the pod mid-start.
 - **Documented hardening exception.** The A\* and frontend pods run with a read-only root filesystem, no privilege escalation and all capabilities dropped. Valhalla's image runs its commands through `sudo`, so it cannot take those settings. It still runs as a non-root user, and the manifest says why.
 
@@ -108,6 +122,7 @@ $0. Compose and `kind` run on a laptop, CI uses free GitHub Actions minutes, and
 
 - **Resource numbers are estimates until the load test (planned).** A smoke test scaled the A\* backend from 1 to 3 replicas within about 30 seconds while each replica saturated roughly one CPU core. It is a single-threaded Python server, and its CPU request (100m) is too low for that. Proper thresholds come from a measured load test.
 - **The timings in the screenshot are one request, not a benchmark.**
-- **`values-prod.yaml` is not installed anywhere.** Shared storage across nodes (the data volume is read by several pods) is an open design question there.
+- **`values-prod.yaml` is not installed anywhere.** Shared storage across nodes (the data volume is read by several pods) is an open design question there. The AWS reference code proposes copying data from S3 into each pod at start, but the Helm chart does not implement that init container yet, so the chart and the reference design are not yet consistent.
+- **The AWS code is a reference, not evidence of an AWS deployment.** It is validated and scanned, never applied, and its cost figures are unverified estimates.
 - The app has no real secrets today, so the chart's Secret is an optional, empty mechanism.
 - The Windows paths in `k8s/kind-config.yaml` must be edited for another machine.

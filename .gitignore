@@ -3,3 +3,15 @@ data/*
 
 # But do not ignore the data folder itself if we want to keep the structure
 !data/.gitkeep
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+
+# kubeconfigs written by the kind provider contain client keys: never commit
+terraform/**/*-config
+kubeconfig*
+*.kubeconfig

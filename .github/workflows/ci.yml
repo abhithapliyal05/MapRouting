@@ -63,6 +63,53 @@ jobs:
             echo "::endgroup::"
           done
 
+  iac:
+    name: Terraform checks and secret scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # Same pinning approach as the other tools: version + SHA-256 (from releases.hashicorp.com).
+      - name: Install terraform v1.16.6
+        env:
+          SHA256: 38034b38d03096399a7a1264a14561a8029b2b496fd1f169452656e53968f1b7
+        run: |
+          curl -fsSL -o tf.zip https://releases.hashicorp.com/terraform/1.16.6/terraform_1.16.6_linux_amd64.zip
+          echo "$SHA256  tf.zip" | sha256sum -c -
+          # Extract into a temp dir: the repo has its own terraform/ directory, which unzip would prompt about.
+          unzip -q tf.zip -d "$RUNNER_TEMP/tf" && sudo mv "$RUNNER_TEMP/tf/terraform" /usr/local/bin/terraform
+      # -backend=false: no account, credentials or state are needed to validate. The AWS code is a
+      # reference design and is never applied; validation is all CI can (and should) do for it.
+      - name: fmt, init and validate (local stack and AWS reference)
+        run: |
+          for dir in terraform/local terraform/aws-reference; do
+            echo "::group::$dir"
+            terraform -chdir=$dir fmt -check -diff
+            terraform -chdir=$dir init -backend=false -input=false
+            terraform -chdir=$dir validate
+            echo "::endgroup::"
+          done
+      # Misconfiguration scan of our own IaC. Accepted findings live in .trivyignore, each with a reason.
+      - name: Trivy IaC scan (AWS reference)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: terraform/aws-reference
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          trivyignores: terraform/aws-reference/.trivyignore
+          skip-dirs: terraform/aws-reference/.terraform
+          format: table
+      # Fails the build if a private key, token or kubeconfig credential is committed anywhere.
+      - name: Trivy secret scan (whole repository)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          exit-code: '1'
+          skip-dirs: .git
+          format: table
+
   build:
     name: Build image (${{ matrix.service }})
     runs-on: ubuntu-24.04
@@ -165,7 +212,7 @@ jobs:
   publish:
     name: Publish image (${{ matrix.service }})
     runs-on: ubuntu-24.04
-    needs: [build, manifests, e2e]   # only runs if the scans pass, the manifests validate and the deploy + rollback test passes
+    needs: [build, manifests, e2e, iac]   # scans pass, manifests validate, deploy + rollback works, no leaked secrets
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     # The only job allowed to write packages; PR runs never get this.
     permissions:
