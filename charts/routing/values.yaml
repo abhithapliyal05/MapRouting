@@ -76,3 +76,11 @@ ingress:
     app: ""            # required when ingress.enabled
     valhalla: ""
     astar: ""
+
+# Dashboard and alert rules. Needs the Prometheus Operator CRDs and Grafana's dashboard sidecar
+# (kube-prometheus-stack), so it is off by default; terraform/local turns it on.
+monitoring:
+  enabled: false
+  alerts:
+    errorRatePercent: 5        # RoutingHighErrorRate: share of 5xx responses
+    latencyP95Seconds: 2       # RoutingHighLatencyP95

@@ -1,0 +1,56 @@
+{{- if .Values.monitoring.enabled }}
+{{- /*
+  Requires the Prometheus Operator CRDs and a Grafana with the dashboard sidecar (kube-prometheus-stack).
+  Off by default so the chart installs on clusters without them (for example the CI cluster).
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-dashboard
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+    grafana_dashboard: "1"   # the Grafana sidecar loads any ConfigMap with this label
+data:
+  routing-overview.json: |
+    {{- .Files.Get "files/dashboard.json" | nindent 4 }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}-alerts
+  labels:
+    {{- include "routing.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: routing
+      rules:
+        - alert: RoutingHighErrorRate
+          expr: |
+            100 * sum by (service) (rate(traefik_service_requests_total{service=~".*-(astar|valhalla|frontend)-[0-9]+@kubernetes",code=~"5.."}[2m]))
+              / sum by (service) (rate(traefik_service_requests_total{service=~".*-(astar|valhalla|frontend)-[0-9]+@kubernetes"}[2m]))
+              > {{ .Values.monitoring.alerts.errorRatePercent }}
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: '{{ "{{ $labels.service }}" }} is returning 5xx on more than {{ .Values.monitoring.alerts.errorRatePercent }}% of requests'
+            description: 'Measured at the ingress over 2 minutes. Check the pods behind {{ "{{ $labels.service }}" }}.'
+        - alert: RoutingServiceUnavailable
+          expr: kube_deployment_status_replicas_available{namespace="{{ .Release.Namespace }}"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: 'Deployment {{ "{{ $labels.deployment }}" }} has no available replicas'
+            description: 'No ready pods for 1 minute: requests to this service will fail.'
+        - alert: RoutingHighLatencyP95
+          expr: |
+            histogram_quantile(0.95, sum by (le, service) (rate(traefik_service_request_duration_seconds_bucket{service=~".*-(astar|valhalla|frontend)-[0-9]+@kubernetes"}[5m])))
+              > {{ .Values.monitoring.alerts.latencyP95Seconds }}
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: 'p95 latency of {{ "{{ $labels.service }}" }} is above {{ .Values.monitoring.alerts.latencyP95Seconds }}s'
+            description: 'Measured at the ingress over 5 minutes.'
+{{- end }}

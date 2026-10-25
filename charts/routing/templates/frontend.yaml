@@ -18,7 +18,8 @@ spec:
         {{- include "routing.selector" (dict "root" . "component" "frontend") | nindent 8 }}
       annotations:
         # config.js is mounted with subPath, which never auto-updates; this forces a rollout on change
-        checksum/config: {{ include (print $.Template.BasePath "/frontend-config.yaml") . | sha256sum }}
+        # Hash the config data only (see valhalla.yaml): a chart version bump must not restart the pods.
+        checksum/config: {{ toYaml .Values.frontend_config | sha256sum }}
     spec:
       securityContext:
         runAsNonRoot: true
