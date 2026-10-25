@@ -19,8 +19,10 @@ spec:
       annotations:
         # ConfigMap/Secret changes don't restart pods by themselves. Hashing them into the pod
         # template makes any config change alter the template, which triggers a rollout.
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        # Hash the config DATA, not the rendered object: the object's labels include the chart version,
+        # and a version bump alone must not restart Valhalla (it uses Recreate, so that is downtime).
+        checksum/config: {{ toYaml .Values.valhalla.env | sha256sum }}
+        checksum/secret: {{ toYaml .Values.secrets | sha256sum }}
     spec:
       securityContext:
         runAsNonRoot: true

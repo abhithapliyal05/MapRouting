@@ -35,8 +35,8 @@ Per-day checkpoints are deferred by the owner's decision: questions are appended
 | 5 | README: architecture diagram, run instructions, honest "what ran where" table, cost notes, 3 resume bullets (draft) | A reader can understand and run the project from the README alone | done |
 | 6 | CD without a cloud: GitHub Actions deploys the chart to an ephemeral kind cluster with a tiny OSM extract, smoke-tests a real route, deliberately breaks a deploy and rolls back with `helm rollback` | Pipeline proves deploy + rollback end to end | done |
 | 7 | Terraform: provision the kind cluster, Traefik, metrics-server and the Helm release locally; plus unapplied AWS/EKS reference code validated in CI (`terraform validate`, `tflint`, Trivy config scan) | `terraform apply/destroy` works locally; reference code validates in CI | done |
-| 8 | Monitoring: kube-prometheus-stack on kind, Grafana dashboards (request rate, p95/p99 latency, pod CPU/memory, error rate), one alert rule | Dashboard screenshots and a firing alert | next |
-| 9 | Load test + analysis: k6 against the routing endpoints, find the saturation point, set HPA thresholds and CPU requests from data, write a capacity report | One-page writeup with graphs | |
+| 8 | Monitoring: kube-prometheus-stack on kind, Grafana dashboards (request rate, p95/p99 latency, pod CPU/memory, error rate), one alert rule | Dashboard screenshots and a firing alert | done |
+| 9 | Load test + analysis: k6 against the routing endpoints, find the saturation point, set HPA thresholds and CPU requests from data, write a capacity report | One-page writeup with graphs | next |
 | 10 | Final polish, update the README with real results, then the full project breakdown and Q&A (deferred checkpoints) | Owner can explain every file | |
 
 GCP/GKE is dropped (no spend). **If time slips:** cut Day 8 (monitoring) before touching Days 5-7 and 9.

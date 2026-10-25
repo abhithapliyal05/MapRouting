@@ -16,11 +16,19 @@ QUERY='{"locations":[{"lat":35.6812,"lon":139.7671},{"lat":35.6586,"lon":139.745
 
 pass() { printf '  PASS  %s\n' "$*"; }
 fail() { printf '  FAIL  %s\n' "$*" >&2; exit 1; }
-get()  { curl -fsS -m 20 -H "Host: $1" "$BASE_URL$2"; }
+# Traefik learns about a new endpoint asynchronously, so the first requests after a deploy can see a
+# transient 503 even though the pod is Ready. Retry before calling it a failure.
+RETRY=(--retry 10 --retry-delay 3 --retry-all-errors)
+get()  { curl -fsS -m 20 "${RETRY[@]}" -H "Host: $1" "$BASE_URL$2"; }
 
 echo "smoke test against $BASE_URL"
 
-code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' -H "Host: $APP_HOST" "$BASE_URL/") || true
+code=000
+for _ in $(seq 1 15); do
+  code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' -H "Host: $APP_HOST" "$BASE_URL/") || true
+  [[ "$code" == "200" ]] && break
+  sleep 3
+done
 [[ "$code" == "200" ]] && pass "frontend serves / (200)" || fail "frontend / returned $code"
 
 cfg=$(get "$APP_HOST" /config.js) || fail "config.js not served"
@@ -33,7 +41,7 @@ get "$ASTAR_HOST" /health | grep -q '"status": "ok"' && pass "astar /health" || 
 # Route checks assert a plausible distance range (km), not an exact number: the CI fixture is a
 # cropped map, so the exact value differs from the full dataset.
 route_km() { # host, extra-json
-  curl -fsS -m 60 -G -H "Host: $1" "$BASE_URL/route" \
+  curl -fsS -m 60 "${RETRY[@]}" -G -H "Host: $1" "$BASE_URL/route" \
     --data-urlencode "json=${QUERY}$2}" | "$PY" -c "import sys,json; print(json.load(sys.stdin)['trip']['summary']['length'])"
 }
 in_range() { "$PY" -c "import sys; v=float(sys.argv[1]); sys.exit(0 if float(sys.argv[2])<=v<=float(sys.argv[3]) else 1)" "$@"; }
