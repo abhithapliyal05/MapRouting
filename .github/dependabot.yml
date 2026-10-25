@@ -1,0 +1,24 @@
+# Proposes updates for pinned dependencies as pull requests, so SHA pins do not go stale.
+# Every proposal goes through the same CI (lint, scan, end-to-end deploy) before it can merge.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: terraform
+    directory: /terraform/local
+    schedule:
+      interval: weekly
+  - package-ecosystem: terraform
+    directory: /terraform/aws-reference
+    schedule:
+      interval: weekly

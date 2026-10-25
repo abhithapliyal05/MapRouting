@@ -4,7 +4,14 @@ A routing web app for central Tokyo, built as a hands-on DevOps project. A MapLi
 
 ![Route comparison: Valhalla vs custom A*](docs/img/route-comparison.jpg)
 
-The application is the vehicle. The project is the engineering around it: containers, CI with security gating, Kubernetes packaging with Helm, autoscaling, and infrastructure as code. Everything runs locally or on free GitHub Actions runners, so it costs nothing to build or reproduce.
+The application is the vehicle. The project is the engineering around it: containers, CI with security gating, Kubernetes packaging with Helm, autoscaling, monitoring, load testing, and infrastructure as code. Everything runs locally or on free GitHub Actions runners, so it costs nothing to build or reproduce.
+
+## Results at a glance
+
+- **Pipeline:** every pull request is linted, built, vulnerability-scanned, deployed to an ephemeral cluster, smoke-tested, deliberately broken and rolled back, and only then can its images be published.
+- **Capacity (measured):** one A\* replica saturates at about **3 requests/s**, one Valhalla replica at about **30 requests/s**. The autoscaler was validated under overload: new replicas within seconds, p95 latency back to 0.49 s after about 80 s. ([report](docs/capacity-report.md))
+- **Monitoring:** Prometheus, Alertmanager and Grafana with a 10-panel dashboard and 4 alert rules. A deliberate outage proved the alerts fire, and exposed one that could not. ([details](docs/monitoring.md))
+- **Infrastructure as code:** the whole local environment from one `terraform apply` (and gone with one `terraform destroy`); an AWS/EKS design that is validated and scanned but **never applied**. ([what ran where](#what-ran-where))
 
 ## Architecture
 
@@ -18,7 +25,10 @@ flowchart LR
   as --- vol
   hpa{{HPA}} -.-> as
   hpa -.-> fe
-  gh[GitHub Actions<br/>lint · build · Trivy · publish] --> reg[(GHCR images)]
+  prom[Prometheus<br/>Alertmanager · Grafana] -.->|scrapes metrics| ing
+  prom -.->|pod CPU/memory| as
+  tf[Terraform] -.->|creates cluster, add-ons, chart| ing
+  gh[GitHub Actions<br/>lint · build · Trivy · e2e deploy · publish] --> reg[(GHCR images)]
   reg -.->|pull| fe
   reg -.->|pull| as
 ```
@@ -73,6 +83,8 @@ Open http://app.localhost:8088 (browsers resolve `*.localhost` to your own machi
 
 **The same thing as code:** `terraform/local` creates the cluster, Traefik, metrics-server and the chart with one `terraform apply` (and removes them with `terraform destroy`). See `terraform/local/README.md`.
 
+**Monitoring comes only with the Terraform path.** The manual commands above do not install Prometheus or Grafana, so the chart's dashboard and alert rules stay off (`monitoring.enabled=false`). Terraform installs the monitoring stack and turns them on; see `docs/monitoring.md`.
+
 ## Repository layout
 
 | Path | What it is |
@@ -90,6 +102,7 @@ Open http://app.localhost:8088 (browsers resolve `*.localhost` to your own machi
 | `docs/monitoring.md` | What is measured, the alert rules, and the monitoring problems found and fixed |
 | `docs/capacity-report.md` | Load-test results, the saturation point of each service, and the settings derived from them |
 | `loadtest/` | k6 script, step-test runner, autoscaler validation, charts, verified test trips and raw results |
+| `docs/interview-prep.md` | Questions (with folded answers) and break-it exercises for every part of the project |
 | `k8s/monitoring-values.yaml` | kube-prometheus-stack settings for the local cluster |
 | `.github/workflows/ci.yml` | CI pipeline (see below) |
 
@@ -101,10 +114,11 @@ Runs on every pull request and every push to `main`:
 2. **Manifests job** validates raw manifests and the **rendered** Helm chart (dev and prod values) against Kubernetes 1.34 schemas with `kubeconform -strict`, after `helm lint --strict`.
 3. **Build** builds each image after lint passes, then **Trivy** scans it and fails the build on fixable HIGH/CRITICAL vulnerabilities.
 4. **End-to-end deploy** starts an ephemeral `kind` cluster, loads the images built and scanned in the same run, installs Traefik and the chart, and smoke-tests real routes through the Ingress. It then deploys a release with a nonexistent image tag on purpose, checks that the failure is reported and the service stays up, rolls back with `helm rollback`, and smoke-tests again. It uses a cropped map fixture so both routing engines work in CI.
-5. **Terraform and secrets** runs `fmt`, `init -backend=false` and `validate` on both Terraform directories, a Trivy misconfiguration scan of the AWS reference code, and a secret scan of the whole repository.
-6. **Publish** (push to `main` only) pushes the exact scanned image to GHCR tagged `sha-<commit>`. It needs the build/scan, manifest validation, end-to-end deploy and Terraform/secret checks to pass, and it is the only job with `packages: write`.
+5. **Alert rules** are rendered from the chart and checked with Prometheus's own `promtool`, and the dashboard JSON is sanity-checked.
+6. **Terraform and secrets** runs `fmt`, `init -backend=false` and `validate` on both Terraform directories, a Trivy misconfiguration scan of the AWS reference code, and a secret scan of the whole repository.
+7. **Publish** (push to `main` only) pushes the exact scanned image to GHCR tagged `sha-<commit>`. It needs the build/scan, manifest validation, end-to-end deploy and Terraform/secret checks to pass, and it is the only job with `packages: write`.
 
-Third-party tools are pinned by version and checksum or commit SHA, and the token is read-only by default.
+**Pinning:** every GitHub Action is pinned to a full commit SHA (the tag it came from is kept in a comment), and every downloaded tool (`kubeconform`, Helm, `kind`, Terraform) is pinned by version and SHA-256, and the `promtool` image by digest. A tag can be moved by its maintainer; a SHA cannot. Dependabot (`.github/dependabot.yml`) proposes updates weekly, and each one goes through the same CI before it can merge. The workflow token is read-only by default.
 
 ## Engineering decisions
 
