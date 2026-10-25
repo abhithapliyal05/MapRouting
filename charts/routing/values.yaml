@@ -12,8 +12,11 @@ astar:
     tag: sha-9df887e          # immutable commit tag, never "latest"
   port: 8003
   resources:
-    requests: {cpu: 100m, memory: 512Mi}
-    limits: {memory: 768Mi}   # measured ~470 MiB steady state
+    # From the load test (docs/capacity-report.md): one replica saturates at ~3 req/s using 0.23-0.27 CPU cores per
+    # req/s, so with a 70% HPA target a 600m request scales out at ~0.42 cores = ~1.6-1.9 req/s, roughly half the knee.
+    # Memory is flat at ~430 MiB at every load (it holds the road graph), so 768Mi is ~1.8x the measured use.
+    requests: {cpu: 600m, memory: 512Mi}
+    limits: {memory: 768Mi}
 
 persistence:
   # Dev: a hostPath PV backed by the kind node's mounted folder (see k8s/kind-config.yaml).
@@ -39,10 +42,12 @@ valhalla:
     build_time_zones: "False"
     build_tar: "True"
     use_tiles_ignore_pbf: "True"  # load existing tiles; never rebuild from the .pbf
-  # NOT yet load-tested (151 MiB idle in Compose). Day 8 sets real numbers.
+  # From the load test (docs/capacity-report.md): one replica handles ~30 req/s (p95 192 ms) and uses ~1.0 core at
+  # 20 req/s, a comfortable operating point. Memory peaked at 172 MiB, but only central-Tokyo trips were tested and
+  # the tiles are memory-mapped, so the limit keeps generous headroom.
   resources:
-    requests: {cpu: 250m, memory: 512Mi}
-    limits: {memory: 2Gi}
+    requests: {cpu: 1000m, memory: 256Mi}
+    limits: {memory: 1Gi}
 
 frontend:
   replicas: 1                 # used only when autoscaling is disabled
