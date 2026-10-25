@@ -1,4 +1,6 @@
 {
+  "started_epoch": 1792944951.1304767,
+  "ended_epoch": 1792945107.5351608,
   "target": "astar",
   "offered_rps": 5,
   "seconds": 150,
@@ -8,140 +10,140 @@
       "ready": 1,
       "current": 1,
       "desired": 1,
-      "cpu_util_pct": 4
+      "cpu_util_pct": 0
     },
     {
       "t": 6,
       "ready": 1,
       "current": 1,
       "desired": 1,
-      "cpu_util_pct": 4
+      "cpu_util_pct": 0
     },
     {
       "t": 11,
       "ready": 1,
       "current": 1,
       "desired": 1,
-      "cpu_util_pct": 4
+      "cpu_util_pct": 0
     },
     {
-      "t": 16,
+      "t": 17,
       "ready": 1,
       "current": 1,
-      "desired": 1,
-      "cpu_util_pct": 21
+      "desired": 2,
+      "cpu_util_pct": 116
     },
     {
       "t": 22,
-      "ready": 1,
+      "ready": 2,
       "current": 1,
-      "desired": 1,
-      "cpu_util_pct": 21
+      "desired": 2,
+      "cpu_util_pct": 116
     },
     {
       "t": 27,
-      "ready": 1,
+      "ready": 2,
       "current": 1,
-      "desired": 3,
-      "cpu_util_pct": 166
+      "desired": 2,
+      "cpu_util_pct": 116
     },
     {
       "t": 33,
-      "ready": 3,
-      "current": 1,
-      "desired": 3,
-      "cpu_util_pct": 166
+      "ready": 2,
+      "current": 2,
+      "desired": 2,
+      "cpu_util_pct": 116
     },
     {
       "t": 38,
-      "ready": 3,
-      "current": 1,
-      "desired": 3,
-      "cpu_util_pct": 166
+      "ready": 2,
+      "current": 2,
+      "desired": 2,
+      "cpu_util_pct": 116
     },
     {
       "t": 44,
-      "ready": 3,
-      "current": 3,
-      "desired": 3,
-      "cpu_util_pct": null
+      "ready": 2,
+      "current": 2,
+      "desired": 2,
+      "cpu_util_pct": 116
     },
     {
       "t": 49,
-      "ready": 3,
-      "current": 3,
+      "ready": 2,
+      "current": 2,
       "desired": 3,
-      "cpu_util_pct": null
+      "cpu_util_pct": 147
     },
     {
       "t": 54,
       "ready": 3,
-      "current": 3,
+      "current": 2,
       "desired": 3,
-      "cpu_util_pct": null
+      "cpu_util_pct": 147
     },
     {
       "t": 60,
       "ready": 3,
-      "current": 3,
+      "current": 2,
       "desired": 3,
-      "cpu_util_pct": 92
+      "cpu_util_pct": 147
     },
     {
       "t": 65,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 92
+      "cpu_util_pct": 145
     },
     {
-      "t": 71,
+      "t": 70,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 92
+      "cpu_util_pct": 145
     },
     {
       "t": 76,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 86
+      "cpu_util_pct": 105
     },
     {
       "t": 81,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 86
+      "cpu_util_pct": 105
     },
     {
       "t": 87,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 86
+      "cpu_util_pct": 105
     },
     {
       "t": 92,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 88
+      "cpu_util_pct": 87
     },
     {
       "t": 98,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 88
+      "cpu_util_pct": 87
     },
     {
       "t": 103,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 84
+      "cpu_util_pct": 87
     },
     {
       "t": 108,
@@ -162,21 +164,21 @@
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 87
+      "cpu_util_pct": 84
     },
     {
       "t": 125,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 87
+      "cpu_util_pct": 86
     },
     {
       "t": 130,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 87
+      "cpu_util_pct": 86
     },
     {
       "t": 135,
@@ -200,17 +202,126 @@
       "cpu_util_pct": 86
     },
     {
-      "t": 152,
+      "t": 151,
       "ready": 3,
       "current": 3,
       "desired": 3,
-      "cpu_util_pct": 87
+      "cpu_util_pct": 84
     }
   ],
-  "p95_timeline_s": [],
+  "p95_timeline_s": [
+    [
+      24.999523401260376,
+      8.531250000000002
+    ],
+    [
+      29.999523401260376,
+      8.531250000000002
+    ],
+    [
+      34.999523401260376,
+      8.531250000000002
+    ],
+    [
+      39.999523401260376,
+      8.531250000000002
+    ],
+    [
+      44.999523401260376,
+      8.531250000000002
+    ],
+    [
+      49.999523401260376,
+      8.531250000000002
+    ],
+    [
+      54.999523401260376,
+      10.0
+    ],
+    [
+      59.999523401260376,
+      10.0
+    ],
+    [
+      64.99952340126038,
+      10.0
+    ],
+    [
+      69.99952340126038,
+      10.0
+    ],
+    [
+      74.99952340126038,
+      10.0
+    ],
+    [
+      79.99952340126038,
+      10.0
+    ],
+    [
+      84.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      89.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      94.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      99.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      104.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      109.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      114.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      119.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      124.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      129.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      134.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      139.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      144.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      149.99952340126038,
+      0.48749999999999993
+    ],
+    [
+      154.99952340126038,
+      0.48749999999999993
+    ]
+  ],
   "k6": {
-    "achieved_rps": 4.863899579601914,
-    "p95_ms": 8635.46115,
-    "error_pct": 1.3679890560875512
+    "achieved_rps": 4.929924489830224,
+    "p95_ms": 5176.1291,
+    "error_pct": 0.9446693657219973
   }
 }

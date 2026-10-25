@@ -12,8 +12,8 @@ astar:
     tag: sha-9df887e          # immutable commit tag, never "latest"
   port: 8003
   resources:
-    # From the load test (docs/capacity-report.md): one replica saturates at ~3 req/s using ~0.225 CPU cores per
-    # req/s, so with a 70% HPA target a 600m request scales out at ~0.42 cores = ~1.9 req/s, about 62% of the knee.
+    # From the load test (docs/capacity-report.md): one replica saturates at ~3 req/s using 0.23-0.27 CPU cores per
+    # req/s, so with a 70% HPA target a 600m request scales out at ~0.42 cores = ~1.6-1.9 req/s, roughly half the knee.
     # Memory is flat at ~430 MiB at every load (it holds the road graph), so 768Mi is ~1.8x the measured use.
     requests: {cpu: 600m, memory: 512Mi}
     limits: {memory: 768Mi}

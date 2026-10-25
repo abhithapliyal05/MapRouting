@@ -37,6 +37,7 @@ This table is deliberately blunt. Code that was written and validated but never 
 | Helm chart, Traefik Ingress, HPA, metrics-server | Ran on a local `kind` cluster |
 | End-to-end deploy test: ephemeral cluster, smoke test, deliberately broken deploy, `helm rollback` | Ran on GitHub Actions (every pull request and push) |
 | `terraform/local`: the local cluster, add-ons and chart as code | Ran locally: `apply`, `plan` (no drift), `destroy`, `apply` again |
+| Load tests (k6) and the autoscaler validation | Ran locally against the `kind` cluster (`docs/capacity-report.md`) |
 | Prometheus, Alertmanager, Grafana, the dashboard and alert rules | Ran on the local `kind` cluster; alerts were made to fire by deliberately taking Valhalla down (see `docs/monitoring.md`) |
 | `terraform/aws-reference`: VPC, EKS, ECR, GitHub OIDC role, S3 | Formatted, validated and security-scanned in CI. **Never applied** |
 | `values-prod.yaml` | Rendered and schema-validated in CI only. **Never installed.** It contains placeholder hostnames and assumes a storage class that does not exist locally |
@@ -87,6 +88,8 @@ Open http://app.localhost:8088 (browsers resolve `*.localhost` to your own machi
 | `ci/` | Cropped map fixture (10.7k nodes) and config for the CI end-to-end test, plus the script that regenerates it |
 | `scripts/smoke-test.sh` | End-to-end checks through the Ingress; used by CI and runnable locally |
 | `docs/monitoring.md` | What is measured, the alert rules, and the monitoring problems found and fixed |
+| `docs/capacity-report.md` | Load-test results, the saturation point of each service, and the settings derived from them |
+| `loadtest/` | k6 script, step-test runner, autoscaler validation, charts, verified test trips and raw results |
 | `k8s/monitoring-values.yaml` | kube-prometheus-stack settings for the local cluster |
 | `.github/workflows/ci.yml` | CI pipeline (see below) |
 
@@ -112,6 +115,7 @@ Third-party tools are pinned by version and checksum or commit SHA, and the toke
 - **A cross-platform bug found by reading a diff.** Helm checksum annotations (used to restart pods when config changes) hash template *text*. A Windows checkout with CRLF endings produced a different hash than Linux, causing spurious restarts of Valhalla (which uses a `Recreate` strategy, so each one is downtime). `.gitattributes` now forces LF everywhere, and a second `helm upgrade` is verified to change nothing.
 - **Valhalla is not autoscaled.** It writes to a `ReadWriteOnce` volume that its entrypoint modifies, so a second replica would be a second writer on the same files. Only the stateless A\* backend and frontend have HPAs.
 - **A deploy pipeline without a cloud.** The end-to-end job proves what a CD pipeline should prove: the artifact deploys, a bad release fails visibly instead of silently, the old version keeps serving during the failed rollout, and rollback restores a working state, all asserted by a script and not by eye.
+- **Resource settings come from measurement, not guesses.** A load test found one A\* replica saturates at ~3 req/s (it uses exactly one core) and Valhalla at ~30 req/s. The original 100m CPU request made the autoscaler trigger at around 0.3 req/s; it is now 600m, so it scales out at roughly half the saturation point. The autoscaler was then validated under overload: it added replicas within seconds and latency recovered in about 80 s.
 - **An alert that could not fire, found by testing it.** The first error-rate alert watched per-service 5xx metrics. A deliberate outage (Valhalla scaled to zero) showed that Traefik answers `503` itself when a route has no backend and attributes nothing to the service, so that alert stayed silent while every request failed. An ingress-level alert and dashboard panel now cover it. Alerts need to be exercised, not just written.
 - **A silent label collision.** Traefik and the Prometheus `ServiceMonitor` both set a `service` label, so Prometheus renamed Traefik's to `exported_service` and every dashboard query returned nothing, without an error. `honorLabels: true` fixes it.
 - **A secret nearly committed, and caught.** The kind Terraform provider writes a kubeconfig (with client keys) beside the Terraform code, and a careless `git add` staged it into a local commit. Inspecting `git ls-files` caught it before any push; the commit was rewritten, the pattern ignored, and a repository-wide secret scan added to CI so this class of mistake fails the build.
@@ -125,8 +129,9 @@ $0. Compose and `kind` run on a laptop, CI uses free GitHub Actions minutes, and
 
 ## Known limitations
 
-- **Resource numbers are estimates until the load test (planned).** A smoke test scaled the A\* backend from 1 to 3 replicas within about 30 seconds while each replica saturated roughly one CPU core. It is a single-threaded Python server, and its CPU request (100m) is too low for that. Proper thresholds come from a measured load test.
-- **The timings in the screenshot are one request, not a benchmark.**
+- **The load-test numbers come from one laptop that also runs the load generator, the cluster and the monitoring stack.** They show *where* each service breaks and how they compare, not absolute production capacity. See `docs/capacity-report.md` for the method and its limits.
+- **The A\* backend is the bottleneck by design:** single-threaded Python, about 3 requests/s per replica against Valhalla's ~30. More replicas help but each costs ~430 MiB.
+- **The timings in the screenshot are one request, not a benchmark.** The load-test report has the real numbers.
 - **`values-prod.yaml` is not installed anywhere.** Shared storage across nodes (the data volume is read by several pods) is an open design question there. The AWS reference code proposes copying data from S3 into each pod at start, but the Helm chart does not implement that init container yet, so the chart and the reference design are not yet consistent.
 - **The AWS code is a reference, not evidence of an AWS deployment.** It is validated and scanned, never applied, and its cost figures are unverified estimates.
 - The app has no real secrets today, so the chart's Secret is an optional, empty mechanism.
