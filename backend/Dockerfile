@@ -1,12 +1,12 @@
 # Stage 1: fail the build early on syntax errors. The app is stdlib-only,
 # so there is nothing to compile or install; only the .py file moves forward.
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 WORKDIR /src
 COPY astar_backend.py .
 RUN python -m py_compile astar_backend.py
 
 # Stage 2: minimal runtime, non-root
-FROM python:3.12-slim
+FROM python:3.15-slim
 ENV PYTHONUNBUFFERED=1
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
 WORKDIR /app
